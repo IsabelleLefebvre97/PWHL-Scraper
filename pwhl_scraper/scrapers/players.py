@@ -180,20 +180,11 @@ def update_player(conn: sqlite3.Connection, player_roster_data: Dict[str, Any],
     except (ValueError, TypeError):
         latest_team_id = None
 
-    # Get bio from player details if available
-    bio = ''
     draft_type = ''
 
     if player_details:
         # The API response structure for player details varies, so we need to handle different possibilities
         if isinstance(player_details, dict):
-            # Try to get bio from different possible locations in the response
-            bio = player_details.get('bio', '')
-            if not bio and 'SiteKit' in player_details:
-                site_kit = player_details['SiteKit']
-                if 'Player' in site_kit and isinstance(site_kit['Player'], dict):
-                    bio = site_kit['Player'].get('bio', '')
-
             # Attempt to extract draft info
             draft_info = player_roster_data.get('draftinfo', [])
             if draft_info and isinstance(draft_info, list) and len(draft_info) > 0:
@@ -215,7 +206,7 @@ def update_player(conn: sqlite3.Connection, player_roster_data: Dict[str, Any],
             UPDATE players 
             SET first_name = ?, last_name = ?, jersey_number = ?, active = ?, rookie = ?,
                 position_id = ?, position = ?, height = ?, weight = ?, birthdate = ?,
-                shoots = ?, catches = ?, bio = ?, image_url = ?, birthtown = ?,
+                shoots = ?, catches = ?, image_url = ?, birthtown = ?,
                 birthprov = ?, birthcntry = ?, nationality = ?, draft_type = ?,
                 veteran_status = ?, veteran_description = ?, latest_team_id = ?
             WHERE id = ?
@@ -223,7 +214,7 @@ def update_player(conn: sqlite3.Connection, player_roster_data: Dict[str, Any],
             cursor.execute(query, (
                 first_name, last_name, jersey_number, active, rookie,
                 position_id, position, height, weight, birthdate,
-                shoots, catches, bio, image_url, birthtown,
+                shoots, catches, image_url, birthtown,
                 birthprov, birthcntry, nationality, draft_type,
                 veteran_status, veteran_description, latest_team_id,
                 player_id
@@ -235,15 +226,15 @@ def update_player(conn: sqlite3.Connection, player_roster_data: Dict[str, Any],
             INSERT INTO players (
                 id, first_name, last_name, jersey_number, active, rookie,
                 position_id, position, height, weight, birthdate,
-                shoots, catches, bio, image_url, birthtown,
+                shoots, catches, image_url, birthtown,
                 birthprov, birthcntry, nationality, draft_type,
                 veteran_status, veteran_description, latest_team_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
             cursor.execute(query, (
                 player_id, first_name, last_name, jersey_number, active, rookie,
                 position_id, position, height, weight, birthdate,
-                shoots, catches, bio, image_url, birthtown,
+                shoots, catches, image_url, birthtown,
                 birthprov, birthcntry, nationality, draft_type,
                 veteran_status, veteran_description, latest_team_id
             ))
@@ -257,7 +248,7 @@ def update_player(conn: sqlite3.Connection, player_roster_data: Dict[str, Any],
         return 0
 
 
-def update_players(db_path: str, player_id: Optional[int] = None)-> Union[int, None, Any]:
+def update_players(db_path: str, player_id: Optional[int] = None) -> Union[int, None, Any]:
     """
     Update player information for all players or a specific player.
 

@@ -22,7 +22,7 @@ pip install pwhl-scraper
 Or install from source:
 
 ```bash
-git clone https://github.com/yourusername/pwhl-scraper.git
+git clone https://github.com/IsabelleLefebvre97/pwhl-scraper.git
 cd pwhl-scraper
 pip install -e .
 ```
@@ -55,14 +55,14 @@ conn = sqlite3.connect("data/pwhl_data.db")
 teams = pd.read_sql_query("SELECT * FROM teams", conn)
 print(teams)
 
-# Get player stats for current season
+# Get player stats for the 2024-2025 regular season
 query = """
 SELECT p.first_name, p.last_name, t.name as team, s.* 
 FROM season_stats_skaters s
 JOIN players p ON s.player_id = p.id
 JOIN teams t ON s.team_id = t.id
 JOIN seasons on s.season_id = seasons.id
-WHERE seasons.current = 1
+WHERE seasons.id = 5
 ORDER BY s.points DESC
 """
 stats = pd.read_sql_query(query, conn)
@@ -145,7 +145,7 @@ optional arguments:
 
 ```
 usage: pwhl-scraper update [-h] [--all] [--basic] [--players] [--player-id PLAYER_ID]
-                     [--games] [--game-details] [--game-id GAME_ID]
+                     [--games] [--game-id GAME_ID]
                      [--stats] [--skater-stats] [--goalie-stats] [--team-stats]
                      [--playoffs] [--play-by-play] [--season-id SEASON_ID]
 
@@ -156,13 +156,12 @@ optional arguments:
   --players             Update player information
   --player-id PLAYER_ID
                         Update specific player by ID
-  --games               Update games schedule
-  --game-details        Update game details
+  --games               Update game information
   --game-id GAME_ID     Update specific game by ID
   --stats               Update all statistics
+  --team-stats          Update team statistics
   --skater-stats        Update skater statistics
   --goalie-stats        Update goalie statistics
-  --team-stats          Update team statistics
   --playoffs            Update playoff information
   --play-by-play        Update play-by-play data
   --season-id SEASON_ID

@@ -154,8 +154,8 @@ def process_goalie_change(conn: sqlite3.Connection, event: Dict[str, Any],
     cursor = conn.cursor()
 
     # Generate a unique ID for this event
-    event_id = f"{game_id}_goalie_{event.get('period_id', '')}_" \
-               f"{event.get('s', '')}_{event.get('team_code', '')}"
+    goalie_change_id = f"{game_id}_goalie_{event.get('period_id', '')}_" \
+                       f"{event.get('s', '')}_{event.get('team_code', '')}"
 
     # Extract data from the event
     period = int(event.get('period_id', 0))
@@ -201,7 +201,7 @@ def process_goalie_change(conn: sqlite3.Connection, event: Dict[str, Any],
             """
 
             cursor.execute(query, (
-                event_id, game_id, season_id, period, time, seconds,
+                goalie_change_id, game_id, season_id, period, time, seconds,
                 team_id, opponent_team_id, goalie_in_id, goalie_out_id
             ))
 
@@ -232,7 +232,7 @@ def process_faceoff(conn: sqlite3.Connection, event: Dict[str, Any],
     cursor = conn.cursor()
 
     # Use the event ID from the data or generate a unique ID
-    event_id = f"{game_id}_faceoff_{event.get('period', '')}_{event.get('s', '')}"
+    faceoff_id = f"{game_id}_faceoff_{event.get('period', '')}_{event.get('s', '')}"
 
     # Extract data from the event
     period = int(event.get('period', 0))
@@ -285,7 +285,7 @@ def process_faceoff(conn: sqlite3.Connection, event: Dict[str, Any],
             """
 
             cursor.execute(query, (
-                event_id, game_id, season_id, period, time, time_formatted, seconds,
+                faceoff_id, game_id, season_id, period, time, time_formatted, seconds,
                 home_player_id, visitor_player_id, home_win, win_team_id, opponent_team_id,
                 x_location, y_location, location_id
             ))
@@ -317,9 +317,10 @@ def process_hit(conn: sqlite3.Connection, event: Dict[str, Any],
     cursor = conn.cursor()
 
     # Use the event ID from the data or generate a unique ID
-    event_id = f"{game_id}_hit_{event.get('id', '')}"
+    hit_id = f"{game_id}_hit_{event.get('id', '')}"
 
     # Extract data from the event
+    event_id = int(event.get('id', 0))
     period = int(event.get('period', 0))
     time = event.get('time', '')
     time_formatted = event.get('time_formatted', '')
@@ -362,14 +363,14 @@ def process_hit(conn: sqlite3.Connection, event: Dict[str, Any],
             # Insert the hit
             query = """
             INSERT INTO pbp_hits (
-                id, game_id, season_id, period, time, time_formatted, seconds,
+                id, event_id, game_id, season_id, period, time, time_formatted, seconds,
                 player_id, team_id, opponent_team_id, home, 
                 x_location, y_location, hit_type
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
 
             cursor.execute(query, (
-                event_id, game_id, season_id, period, time, time_formatted, seconds,
+                hit_id, event_id, game_id, season_id, period, time, time_formatted, seconds,
                 player_id, team_id, opponent_team_id, home,
                 x_location, y_location, hit_type
             ))
@@ -401,9 +402,10 @@ def process_shot(conn: sqlite3.Connection, event: Dict[str, Any],
     cursor = conn.cursor()
 
     # Use the event ID from the data or generate a unique ID
-    event_id = f"{game_id}_shot_{event.get('id', '')}"
+    shot_id = f"{game_id}_shot_{event.get('id', '')}"
 
     # Extract data from the event
+    event_id = int(event.get('id', 0))
     player_id = int(event.get('player_id', 0))
     goalie_id = int(event.get('goalie_id', 0)) if event.get('goalie_id') else None
 
@@ -457,15 +459,15 @@ def process_shot(conn: sqlite3.Connection, event: Dict[str, Any],
             # Insert the shot
             query = """
             INSERT INTO pbp_shots (
-                id, game_id, season_id, player_id, goalie_id, team_id, opponent_team_id,
+                id, event_id, game_id, season_id, player_id, goalie_id, team_id, opponent_team_id,
                 home, period, time, time_formatted, seconds,
                 x_location, y_location, shot_type, shot_type_description,
                 quality, shot_quality_description, game_goal_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
 
             cursor.execute(query, (
-                event_id, game_id, season_id, player_id, goalie_id, team_id, opponent_team_id,
+                shot_id, event_id, game_id, season_id, player_id, goalie_id, team_id, opponent_team_id,
                 home, period, time, time_formatted, seconds,
                 x_location, y_location, shot_type, shot_type_description,
                 quality, shot_quality_description, game_goal_id
@@ -498,9 +500,10 @@ def process_blocked_shot(conn: sqlite3.Connection, event: Dict[str, Any],
     cursor = conn.cursor()
 
     # Use the event ID from the data or generate a unique ID
-    event_id = f"{game_id}_blocked_{event.get('id', '')}"
+    blocked_shot_id = f"{game_id}_blocked_{event.get('id', '')}"
 
     # Extract data from the event
+    event_id = int(event.get('id', 0))
     player_id = int(event.get('player_id', 0))
     goalie_id = int(event.get('goalie_id', 0)) if event.get('goalie_id') else None
 
@@ -554,15 +557,15 @@ def process_blocked_shot(conn: sqlite3.Connection, event: Dict[str, Any],
             # Insert the blocked shot
             query = """
             INSERT INTO pbp_blocked_shots (
-                id, game_id, season_id, player_id, goalie_id, team_id,
+                id, event_id, game_id, season_id, player_id, goalie_id, team_id,
                 blocker_player_id, blocker_team_id, home, period, time, time_formatted, seconds,
                 x_location, y_location, orientation, shot_type, shot_type_description,
                 quality, shot_quality_description
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
 
             cursor.execute(query, (
-                event_id, game_id, season_id, player_id, goalie_id, team_id,
+                blocked_shot_id, event_id, game_id, season_id, player_id, goalie_id, team_id,
                 blocker_player_id, blocker_team_id, home, period, time, time_formatted, seconds,
                 x_location, y_location, orientation, shot_type, shot_type_description,
                 quality, shot_quality_description
@@ -595,9 +598,10 @@ def process_goal(conn: sqlite3.Connection, event: Dict[str, Any],
     cursor = conn.cursor()
 
     # Use the event ID from the data or generate a unique ID
-    event_id = f"{game_id}_goal_{event.get('id', '')}"
+    goal_id = f"{game_id}_goal_{event.get('id', '')}"
 
     # Extract data from the event
+    event_id = int(event.get('id', 0))
     team_id = int(event.get('team_id', 0))
     opponent_team_id = visiting_team if team_id == home_team else home_team
 
@@ -674,17 +678,17 @@ def process_goal(conn: sqlite3.Connection, event: Dict[str, Any],
             # Insert the goal
             query = """
             INSERT INTO pbp_goals (
-                id, game_id, season_id, team_id, opponent_team_id, home,
+                id, event_id, game_id, season_id, team_id, opponent_team_id, home,
                 goal_player_id, assist1_player_id, assist2_player_id,
                 period, time, time_formatted, seconds,
                 x_location, y_location, location_set, power_play, empty_net,
                 penalty_shot, short_handed, insurance_goal, game_winning, game_tieing,
                 scorer_goal_num, goal_type
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
 
             cursor.execute(query, (
-                event_id, game_id, season_id, team_id, opponent_team_id, home,
+                goal_id, event_id, game_id, season_id, team_id, opponent_team_id, home,
                 goal_player_id, assist1_player_id, assist2_player_id,
                 period, time, time_formatted, seconds,
                 x_location, y_location, location_set, power_play, empty_net,
@@ -819,9 +823,10 @@ def process_penalty(conn: sqlite3.Connection, event: Dict[str, Any],
     cursor = conn.cursor()
 
     # Use the event ID from the data or generate a unique ID
-    event_id = f"{game_id}_penalty_{event.get('id', '')}"
+    penalty_id = f"{game_id}_penalty_{event.get('id', '')}"
 
     # Extract data from the event
+    event_id = int(event.get('id', 0))
     player_id = int(event.get('player_id', 0))
     player_served = int(event.get('player_served', 0))
 
@@ -874,15 +879,15 @@ def process_penalty(conn: sqlite3.Connection, event: Dict[str, Any],
             # Insert the penalty
             query = """
             INSERT INTO pbp_penalties (
-                id, game_id, season_id, player_id, player_served, team_id, opponent_team_id,
+                id, event_id, game_id, season_id, player_id, player_served, team_id, opponent_team_id,
                 home, period, time_off_formatted, minutes, minutes_formatted,
                 bench, penalty_shot, pp, offence, penalty_class_id, penalty_class,
                 lang_penalty_description
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
 
             cursor.execute(query, (
-                event_id, game_id, season_id, player_id, player_served, team_id, opponent_team_id,
+                penalty_id, event_id, game_id, season_id, player_id, player_served, team_id, opponent_team_id,
                 home, period, time_off_formatted, minutes, minutes_formatted,
                 bench, penalty_shot, pp, offence, penalty_class_id, penalty_class,
                 lang_penalty_description
@@ -915,9 +920,10 @@ def process_shootout(conn: sqlite3.Connection, event: Dict[str, Any],
     cursor = conn.cursor()
 
     # Use the event ID from the data or generate a unique ID
-    event_id = f"{game_id}_shootout_{event.get('id', '')}"
+    shootout_id = f"{game_id}_shootout_{event.get('id', '')}"
 
     # Extract data from the event
+    event_id = int(event.get('id', 0))
     player_id = int(event.get('player_id', 0))
     goalie_id = int(event.get('goalie_id', 0)) if event.get('goalie_id') else None
 
@@ -955,13 +961,13 @@ def process_shootout(conn: sqlite3.Connection, event: Dict[str, Any],
             # Insert the shootout
             query = """
             INSERT INTO pbp_shootouts (
-                id, game_id, season_id, player_id, goalie_id, team_id, opponent_team_id,
+                id, event_id, game_id, season_id, player_id, goalie_id, team_id, opponent_team_id,
                 home, shot_order, goal, winning_goal, seconds
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
 
             cursor.execute(query, (
-                event_id, game_id, season_id, player_id, goalie_id, team_id, opponent_team_id,
+                shootout_id, event_id, game_id, season_id, player_id, goalie_id, team_id, opponent_team_id,
                 home, shot_order, goal, winning_goal, seconds
             ))
 

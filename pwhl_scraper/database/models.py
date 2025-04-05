@@ -99,7 +99,6 @@ DB_SCHEMA = {
                 birthdate TEXT,
                 shoots TEXT,
                 catches TEXT,
-                bio TEXT,
                 image_url TEXT,
                 birthtown TEXT,
                 birthprov TEXT,
@@ -513,6 +512,7 @@ DB_SCHEMA = {
             "schema": """
             CREATE TABLE IF NOT EXISTS pbp_hits (
                 id TEXT PRIMARY KEY,
+                event_id INTEGER,
                 game_id INTEGER,
                 season_id INTEGER,
                 period INTEGER,
@@ -540,6 +540,7 @@ DB_SCHEMA = {
             "schema": """
             CREATE TABLE IF NOT EXISTS pbp_shots (
                 id TEXT PRIMARY KEY,
+                event_id INTEGER,
                 game_id INTEGER,
                 season_id INTEGER,
                 player_id INTEGER,
@@ -563,7 +564,8 @@ DB_SCHEMA = {
                 FOREIGN KEY (player_id) REFERENCES players(id),
                 FOREIGN KEY (goalie_id) REFERENCES players(id),
                 FOREIGN KEY (team_id) REFERENCES teams(id),
-                FOREIGN KEY (opponent_team_id) REFERENCES teams(id)
+                FOREIGN KEY (opponent_team_id) REFERENCES teams(id),
+                FOREIGN KEY (game_goal_id) REFERENCES pbp_goals(id)
             );
             """
         },
@@ -573,6 +575,7 @@ DB_SCHEMA = {
             "schema": """
             CREATE TABLE IF NOT EXISTS pbp_blocked_shots (
                 id TEXT PRIMARY KEY,
+                event_id INTEGER,
                 game_id INTEGER,
                 season_id INTEGER,
                 player_id INTEGER,
@@ -608,6 +611,7 @@ DB_SCHEMA = {
             "schema": """
             CREATE TABLE IF NOT EXISTS pbp_goals (
                 id TEXT PRIMARY KEY,
+                event_id INTEGER,
                 game_id INTEGER,
                 season_id INTEGER,
                 team_id INTEGER,
@@ -654,7 +658,7 @@ DB_SCHEMA = {
                 team_id INTEGER,
                 player_id INTEGER,
                 jersey_number INTEGER,
-                FOREIGN KEY (goal_id) REFERENCES pbp_goals(id),
+                FOREIGN KEY (goal_id) REFERENCES pbp_goals(event_id),
                 FOREIGN KEY (game_id) REFERENCES games(id),
                 FOREIGN KEY (season_id) REFERENCES seasons(id),
                 FOREIGN KEY (team_id) REFERENCES teams(id),
@@ -674,7 +678,7 @@ DB_SCHEMA = {
                 team_id INTEGER,
                 player_id INTEGER,
                 jersey_number INTEGER,
-                FOREIGN KEY (goal_id) REFERENCES pbp_goals(id),
+                FOREIGN KEY (goal_id) REFERENCES pbp_goals(event_id),
                 FOREIGN KEY (game_id) REFERENCES games(id),
                 FOREIGN KEY (season_id) REFERENCES seasons(id),
                 FOREIGN KEY (team_id) REFERENCES teams(id),
@@ -688,6 +692,7 @@ DB_SCHEMA = {
             "schema": """
             CREATE TABLE IF NOT EXISTS pbp_penalties (
                 id TEXT PRIMARY KEY,
+                event_id INTEGER,
                 game_id INTEGER,
                 season_id INTEGER,
                 player_id INTEGER,
@@ -720,6 +725,7 @@ DB_SCHEMA = {
             "schema": """
             CREATE TABLE IF NOT EXISTS pbp_shootouts (
                 id TEXT PRIMARY KEY,
+                event_id INTEGER,
                 game_id INTEGER,
                 season_id INTEGER,
                 player_id INTEGER,

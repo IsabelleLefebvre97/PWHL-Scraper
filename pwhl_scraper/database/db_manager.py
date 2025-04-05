@@ -45,6 +45,15 @@ def create_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
         raise
 
 
+def get_db_connection(db_path: Optional[str] = None):
+    """Get database connection as a context manager."""
+    conn = create_connection(db_path)
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
 def execute_query(conn: sqlite3.Connection, query: str, params: Optional[Tuple] = None) -> int:
     """
     Execute a SQL query and return the number of affected rows.
@@ -103,6 +112,23 @@ def execute_many(conn: sqlite3.Connection, query: str, params_list: List[Tuple])
         logger.debug(f"Parameter count: {len(params_list)}")
         conn.rollback()
         raise
+
+
+def with_transaction(func):
+    """Decorator to execute a function within a transaction."""
+
+    def wrapper(conn, *args, **kwargs):
+        cursor = conn.cursor()
+        try:
+            cursor.execute("BEGIN TRANSACTION")
+            result = func(conn, *args, **kwargs)
+            conn.commit()
+            return result
+        except Exception as e:
+            conn.rollback()
+            raise
+
+    return wrapper
 
 
 def fetch_all(conn: sqlite3.Connection, query: str, params: Optional[Tuple] = None) -> List[Tuple]:

@@ -1,2 +1,0 @@
-[console_scripts]
-pwhl-scraper = pwhl_scraper.cli:main
