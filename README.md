@@ -82,7 +82,7 @@ pwhl-scraper export --table season_stats_skaters --output stats.csv
 pwhl-scraper export --table players --format json --output players.json
 
 # Export with custom query
-pwhl-scraper export --format csv --output top_scorers.csv --query "SELECT p.first_name, p.last_name, t.name as team, s.goals, s.assists, s.points FROM season_stats_skaters s JOIN players p ON s.player_id = p.id JOIN teams t ON s.team_id = t.id WHERE s.season_id = 5 ORDER BY s.points DESC LIMIT 20"
+pwhl-scraper export --table season_stats_skaters --format csv --output top_scorers.csv --query "SELECT p.first_name, p.last_name, t.name as team, s.goals, s.assists, s.points FROM season_stats_skaters s JOIN players p ON s.player_id = p.id JOIN teams t ON s.team_id = t.id WHERE s.season_id = 5 ORDER BY s.goals DESC LIMIT 20"
 ```
 
 ## API Documentation

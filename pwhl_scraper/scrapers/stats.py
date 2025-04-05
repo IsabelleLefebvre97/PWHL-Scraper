@@ -1616,7 +1616,7 @@ def update_skater_stats(db_path: str, season_id: Optional[int] = None,
             cursor.execute("SELECT position FROM players WHERE id = ?", (player_id,))
             result = cursor.fetchone()
 
-            if result and result[0] in ('F', 'D'):
+            if result and result[0].upper() != 'G':
                 # Fetch player's season stats
                 player_stats = fetch_player_season_stats(client, player_id)
 
@@ -1638,7 +1638,7 @@ def update_skater_stats(db_path: str, season_id: Optional[int] = None,
                 cursor.execute("SELECT position FROM players WHERE id = ?", (player_id,))
                 result = cursor.fetchone()
 
-                if result and result[0] in ('F', 'D'):
+                if result and result[0].upper() != 'G':
                     logger.info(f"Processing skater {player_id}")
 
                     # Fetch player's season stats
