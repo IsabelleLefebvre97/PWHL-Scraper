@@ -6,12 +6,19 @@ and query execution.
 """
 
 import os
+from contextlib import contextmanager
 import sqlite3
 import logging
-from typing import List, Dict, Any, Optional, Tuple
+import queue
+from collections import namedtuple
+from typing import Union, List, Dict, Any, Optional, Tuple
+
+# Define a type for query parameters
+ParamType = Union[str, int, float, None]
+ParamTuple = Tuple[ParamType, ...]
 
 from pwhl_scraper.database.models import DB_SCHEMA
-from pwhl_scraper.config import DB_PATH, DATA_DIR
+from pwhl_scraper.config import DB_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +52,7 @@ def create_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
         raise
 
 
+@contextmanager
 def get_db_connection(db_path: Optional[str] = None):
     """Get database connection as a context manager."""
     conn = create_connection(db_path)
@@ -52,6 +60,30 @@ def get_db_connection(db_path: Optional[str] = None):
         yield conn
     finally:
         conn.close()
+
+
+@contextmanager
+def transaction(conn: sqlite3.Connection):
+    """Context manager for database transactions."""
+    try:
+        yield conn
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Transaction error, rolling back: {e}")
+        raise
+
+
+def check_database_integrity(conn: sqlite3.Connection) -> bool:
+    """Check database integrity."""
+    try:
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA integrity_check")
+        result = cursor.fetchone()[0]
+        return result == "ok"
+    except sqlite3.Error as e:
+        logger.error(f"Integrity check error: {e}")
+        return False
 
 
 def execute_query(conn: sqlite3.Connection, query: str, params: Optional[Tuple] = None) -> int:
@@ -114,45 +146,40 @@ def execute_many(conn: sqlite3.Connection, query: str, params_list: List[Tuple])
         raise
 
 
-def with_transaction(func):
-    """Decorator to execute a function within a transaction."""
-
-    def wrapper(conn, *args, **kwargs):
-        cursor = conn.cursor()
-        try:
-            cursor.execute("BEGIN TRANSACTION")
-            result = func(conn, *args, **kwargs)
-            conn.commit()
-            return result
-        except Exception as e:
-            conn.rollback()
-            raise
-
-    return wrapper
-
-
 def fetch_all(conn: sqlite3.Connection, query: str, params: Optional[Tuple] = None) -> List[Tuple]:
-    """
-    Execute a SQL query and fetch all results.
-
-    Args:
-        conn: Database connection
-        query: SQL query to execute
-        params: Query parameters
-
-    Returns:
-        List of result rows
-
-    Raises:
-        sqlite3.Error: If query execution fails
-    """
+    """Execute a SQL query and fetch all results."""
     try:
         cursor = conn.cursor()
         if params:
             cursor.execute(query, params)
         else:
             cursor.execute(query)
-        return cursor.fetchall()
+
+        # Get column names
+        column_names = [description[0] for description in cursor.description]
+        Row = namedtuple('Row', column_names)
+
+        # Convert results to named tuples
+        return [Row(*row) for row in cursor.fetchall()]
+    except sqlite3.Error as e:
+        logger.error(f"Query error: {e}")
+        logger.debug(f"Query: {query}")
+        if params:
+            logger.debug(f"Parameters: {params}")
+        raise
+
+
+def fetch_all_as_dict(conn: sqlite3.Connection, query: str, params: Optional[Tuple] = None) -> List[Dict[str, Any]]:
+    """Execute a SQL query and fetch all results as dictionaries."""
+    try:
+        cursor = conn.cursor()
+        if params:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
+
+        columns = [description[0] for description in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
     except sqlite3.Error as e:
         logger.error(f"Query error: {e}")
         logger.debug(f"Query: {query}")
@@ -189,6 +216,48 @@ def fetch_one(conn: sqlite3.Connection, query: str, params: Optional[Tuple] = No
         if params:
             logger.debug(f"Parameters: {params}")
         raise
+
+
+def build_select_query(table: str, columns: List[str], where: Optional[Dict[str, Any]] = None) -> Tuple[str, List[Any]]:
+    """Build a SELECT query."""
+    query = f"SELECT {', '.join(columns)} FROM {table}"
+    params = []
+
+    if where:
+        conditions = []
+        for column, value in where.items():
+            conditions.append(f"{column} = ?")
+            params.append(value)
+
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+
+    # Return params as a list instead of converting to tuple
+    return query, params
+
+
+class ConnectionPool:
+    def __init__(self, max_connections=5, db_path=None):
+        self.db_path = db_path if db_path else DB_PATH
+        self.pool = queue.Queue(maxsize=max_connections)
+        self._fill_pool(max_connections)
+
+    def _fill_pool(self, count):
+        for _ in range(count):
+            self.pool.put(create_connection(self.db_path))
+
+    @contextmanager
+    def get_connection(self):
+        conn = self.pool.get()
+        try:
+            yield conn
+        finally:
+            self.pool.put(conn)
+
+    def close_all(self):
+        while not self.pool.empty():
+            conn = self.pool.get()
+            conn.close()
 
 
 def create_table(conn: sqlite3.Connection, table_name: str, schema: str) -> None:
@@ -377,3 +446,34 @@ def vacuum_database(conn: sqlite3.Connection) -> None:
     """
     conn.execute("VACUUM")
     logger.info("Database vacuumed")
+
+
+def get_db_version(conn: sqlite3.Connection) -> int:
+    """Get the database schema version."""
+    try:
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA user_version")
+        return cursor.fetchone()[0]
+    except sqlite3.Error:
+        return 0
+
+
+def set_db_version(conn: sqlite3.Connection, version: int) -> None:
+    """Set the database schema version."""
+    conn.execute(f"PRAGMA user_version = {version}")
+
+
+def backup_database(source_path: str, backup_path: str) -> None:
+    """Create a backup of the database."""
+    try:
+        source_conn = create_connection(source_path)
+        backup_conn = create_connection(backup_path)
+
+        source_conn.backup(backup_conn)
+
+        backup_conn.close()
+        source_conn.close()
+        logger.info(f"Database backup created at {backup_path}")
+    except sqlite3.Error as e:
+        logger.error(f"Database backup failed: {e}")
+        raise

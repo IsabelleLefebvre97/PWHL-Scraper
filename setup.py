@@ -28,7 +28,7 @@ def get_requirements():
 
 
 setup(
-    name="pwhl-scraper",
+    name="PWHL-Scraper",
     version=get_version(),
     description="Data scraper and API for PWHL (Professional Women's Hockey League) statistics",
     long_description=read('README.md'),

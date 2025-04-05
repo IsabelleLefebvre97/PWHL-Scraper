@@ -11,11 +11,39 @@ This module fetches and updates basic league information including:
 import sqlite3
 import logging
 from typing import Dict, Any, Optional, List
+from contextlib import contextmanager
 
 from pwhl_scraper.api.client import PWHLApiClient
 from pwhl_scraper.database.db_manager import create_connection
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_string(value: Optional[str]) -> str:
+    """Normalize string values by stripping whitespace and handling None values."""
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def safe_int(value: Any, default: int = 0) -> int:
+    """Safely convert value to integer."""
+    try:
+        if value is None:
+            return default
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+
+@contextmanager
+def get_db_connection(db_path: str):
+    """Context manager for database connections."""
+    conn = create_connection(db_path)
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 def update_leagues(conn: sqlite3.Connection, leagues_data: List[Dict[str, Any]]) -> int:
@@ -31,41 +59,46 @@ def update_leagues(conn: sqlite3.Connection, leagues_data: List[Dict[str, Any]])
     """
     logger.info("Updating leagues...")
     cursor = conn.cursor()
-    updated_count = 0
+
+    # Prepare update and insert data
+    updates = []
+    inserts = []
+
+    # Get existing league IDs (once)
+    cursor.execute("SELECT id FROM leagues")
+    existing_ids = {row[0] for row in cursor.fetchall()}
 
     for league in leagues_data:
         league_id = int(league.get("id", 0))
         if not league_id:
             continue
 
-        name = league.get("name", "")
-        short_name = league.get("short_name", "")
-        code = league.get("code", "")
+        name = normalize_string(league.get("name", ""))
+        short_name = normalize_string(league.get("short_name", ""))
+        code = normalize_string(league.get("code", ""))
         logo_url = league.get("logo_image", "")
 
-        # Check if league exists
-        cursor.execute("SELECT id FROM leagues WHERE id = ?", (league_id,))
-        exists = cursor.fetchone()
-
-        if exists:
-            # Update existing league
-            query = """
-            UPDATE leagues 
-            SET name = ?, short_name = ?, code = ?, logo_url = ?
-            WHERE id = ?
-            """
-            cursor.execute(query, (name, short_name, code, logo_url, league_id))
+        if league_id in existing_ids:
+            updates.append((name, short_name, code, logo_url, league_id))
         else:
-            # Insert new league
-            query = """
-            INSERT INTO leagues (id, name, short_name, code, logo_url)
-            VALUES (?, ?, ?, ?, ?)
-            """
-            cursor.execute(query, (league_id, name, short_name, code, logo_url))
+            inserts.append((league_id, name, short_name, code, logo_url))
 
-        updated_count += 1
+    # Execute batched updates
+    if updates:
+        cursor.executemany("""
+        UPDATE leagues 
+        SET name = ?, short_name = ?, code = ?, logo_url = ?
+        WHERE id = ?
+        """, updates)
 
-    conn.commit()
+    # Execute batched inserts
+    if inserts:
+        cursor.executemany("""
+        INSERT INTO leagues (id, name, short_name, code, logo_url)
+        VALUES (?, ?, ?, ?, ?)
+        """, inserts)
+
+    updated_count = len(updates) + len(inserts)
     logger.info(f"Updated {updated_count} leagues")
     return updated_count
 
@@ -252,17 +285,21 @@ def update_teams(conn: sqlite3.Connection, teams_data: List[Dict[str, Any]],
     logger.info(f"Updating teams for season {season_id}...")
     cursor = conn.cursor()
     updated_count = 0
+    skipped_count = 0
 
     for team in teams_data:
         try:
-            team_id = int(team.get("id", 0))
+            team_id = safe_int(team.get("id"))
+            if not team_id:
+                skipped_count += 1
+                continue
         except (ValueError, TypeError):
             continue
 
         if not team_id:
             continue
 
-        name = team.get("name", "")
+        name = normalize_string(team.get("name", ""))
         nickname = team.get("nickname", "")
         code = team.get("code", "")
         city = team.get("city", "")
@@ -332,6 +369,9 @@ def update_teams(conn: sqlite3.Connection, teams_data: List[Dict[str, Any]],
 
         updated_count += 1
 
+    if skipped_count > 0:
+        logger.warning(f"Skipped {skipped_count} teams due to errors")
+
     conn.commit()
     logger.info(f"Updated {updated_count} teams")
     return updated_count
@@ -366,7 +406,7 @@ def get_current_season_id(conn: sqlite3.Connection) -> Optional[int]:
     return result[0] if result else None
 
 
-def update_basic_info(db_path: str) -> int | None:
+def update_basic_info(db_path: str) -> Optional[int]:
     """
     Update basic information (leagues, conferences, divisions, seasons, teams).
 
@@ -377,64 +417,70 @@ def update_basic_info(db_path: str) -> int | None:
         Total number of records updated
     """
     client = PWHLApiClient()
-    conn = create_connection(db_path)
-    total_updated = 0
+    with get_db_connection(db_path) as conn:
+        total_updated = 0
 
-    try:
-        # Get bootstrap data (contains leagues, conferences, divisions)
-        bootstrap_data = client.fetch_basic_info()
+        try:
+            # Begin a single transaction for all operations
+            conn.execute("BEGIN TRANSACTION")
 
-        if bootstrap_data:
-            # Store current league ID for use throughout the process
-            league_id = int(bootstrap_data.get("current_league_id", 1))
+            # Get bootstrap data (contains leagues, conferences, divisions)
+            bootstrap_data = client.fetch_basic_info()
 
-            # Update leagues
-            leagues_data = bootstrap_data.get("leagues", [])
-            total_updated += update_leagues(conn, leagues_data)
+            if bootstrap_data:
+                # Store current league ID for use throughout the process
+                league_id = int(bootstrap_data.get("current_league_id", 1))
 
-            # Update conferences with league_id
-            conferences_data = bootstrap_data.get("conferences", [])
-            total_updated += update_conferences(conn, conferences_data, league_id)
+                # Update leagues
+                leagues_data = bootstrap_data.get("leagues", [])
+                total_updated += update_leagues(conn, leagues_data)
 
-            # Update divisions with league_id
-            divisions_data = bootstrap_data.get("divisions", [])
-            total_updated += update_divisions(conn, divisions_data, league_id)
-        else:
-            logger.error("Failed to fetch bootstrap data")
-            league_id = 1  # Default to 1 if not available
+                # Update conferences with league_id
+                conferences_data = bootstrap_data.get("conferences", [])
+                total_updated += update_conferences(conn, conferences_data, league_id)
 
-        # Get seasons data
-        seasons_response = client.fetch_seasons_list()
-
-        if seasons_response and 'Seasons' in seasons_response.get('SiteKit', {}):
-            seasons_data = seasons_response['SiteKit']['Seasons']
-            total_updated += update_seasons(conn, seasons_data)
-        else:
-            logger.error("Failed to fetch seasons data")
-
-        # Get the current season ID
-        current_season_id = get_current_season_id(conn)
-
-        if current_season_id:
-            # Get teams data for the current season
-            teams_response = client.fetch_teams_by_season(current_season_id)
-
-            if teams_response and 'Teamsbyseason' in teams_response.get('SiteKit', {}):
-                teams_data = teams_response['SiteKit']['Teamsbyseason']
-                total_updated += update_teams(conn, teams_data, current_season_id, league_id)
+                # Update divisions with league_id
+                divisions_data = bootstrap_data.get("divisions", [])
+                total_updated += update_divisions(conn, divisions_data, league_id)
             else:
-                logger.error(f"Failed to fetch teams data for season {current_season_id}")
-        else:
-            logger.error("No current season found")
+                logger.error("Failed to fetch bootstrap data")
+                league_id = 1  # Default to 1 if not available
 
-    except Exception as e:
-        logger.error(f"Error updating basic info: {e}")
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+            # Get seasons data
+            seasons_response = client.fetch_seasons_list()
 
-    return total_updated
+            if seasons_response and 'Seasons' in seasons_response.get('SiteKit', {}):
+                seasons_data = seasons_response['SiteKit']['Seasons']
+                total_updated += update_seasons(conn, seasons_data)
+            else:
+                logger.error("Failed to fetch seasons data")
+
+            # Get the current season ID
+            current_season_id = get_current_season_id(conn)
+
+            if current_season_id:
+                # Get teams data for the current season
+                teams_response = client.fetch_teams_by_season(current_season_id)
+
+                if teams_response and 'Teamsbyseason' in teams_response.get('SiteKit', {}):
+                    teams_data = teams_response['SiteKit']['Teamsbyseason']
+                    total_updated += update_teams(conn, teams_data, current_season_id, league_id)
+                else:
+                    logger.error(f"Failed to fetch teams data for season {current_season_id}")
+            else:
+                logger.error("No current season found")
+
+            # Commit once at the end
+            conn.commit()
+            return total_updated
+
+        except Exception as e:
+            logger.error(f"Error updating basic info: {e}")
+            conn.rollback()
+            raise
+
+        finally:
+            conn.close()
 
 
 if __name__ == "__main__":

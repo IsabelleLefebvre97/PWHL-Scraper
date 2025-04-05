@@ -5,7 +5,7 @@ import time
 import json
 import logging
 import requests
-from typing import Dict, Any, Optional, List, Union, Tuple
+from typing import Dict, Any, Optional
 
 from pwhl_scraper.api.endpoints import API_ENDPOINTS
 from pwhl_scraper.config import API_CONFIG
@@ -16,7 +16,14 @@ logger = logging.getLogger(__name__)
 class PWHLApiClient:
     """Client for interacting with PWHL HockeyTech API."""
 
-    def __init__(self, rate_limit: float = 0.1, max_retries: int = 3):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if hasattr(self, 'session'):
+            self.session.close()
+
+    def __init__(self, rate_limit: float = 0.1, max_retries: int = 3, enable_cache: bool = True):
         """
         Initialize the API client.
 
@@ -24,6 +31,8 @@ class PWHLApiClient:
             rate_limit: Minimum time between requests in seconds
             max_retries: Maximum number of retry attempts for failed requests
         """
+        self.session = requests.Session()
+        self.cache = {} if enable_cache else None
         self.rate_limit = rate_limit
         self.max_retries = max_retries
         self.last_request_time = 0
@@ -58,11 +67,13 @@ class PWHLApiClient:
         Returns:
             Response object or None if all requests fail
         """
+        logger.debug(f"Making request to {url} with params: {params}")
+
         for attempt in range(self.max_retries):
             self._respect_rate_limit()
 
             try:
-                response = requests.get(url, params=params, timeout=10)
+                response = self.session.get(url, params=params, timeout=10)
 
                 if response.status_code == 200:
                     return response
@@ -80,7 +91,21 @@ class PWHLApiClient:
         logger.error(f"All {self.max_retries} attempts failed for URL: {url}")
         return None
 
-    def fetch_data(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Optional[Dict]:
+    def _call_endpoint(self, endpoint_name: str, custom_params: Optional[Dict[str, Any]] = None) -> Optional[Dict]:
+        """Generic method to call an endpoint with custom parameters."""
+        if endpoint_name not in API_ENDPOINTS:
+            logger.error(f"Unknown endpoint: {endpoint_name}")
+            return None
+
+        endpoint_config = API_ENDPOINTS[endpoint_name]
+        params = endpoint_config["params"].copy() if "params" in endpoint_config else {}
+
+        if custom_params:
+            params.update(custom_params)
+
+        return self.fetch_data(endpoint_config["path"], params)
+
+    def fetch_data(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
         """
         Fetch data from specified API endpoint.
 
@@ -93,6 +118,13 @@ class PWHLApiClient:
         """
         if params is None:
             params = {}
+
+        # Define cache_key outside the conditional block
+        cache_key = None
+        if self.cache is not None:
+            cache_key = f"{endpoint}:{json.dumps(params, sort_keys=True)}"
+            if cache_key in self.cache:
+                return self.cache[cache_key]
 
         # Merge default parameters with provided parameters
         merged_params = {**self.default_params, **params}
@@ -113,6 +145,10 @@ class PWHLApiClient:
 
         try:
             data = json.loads(text)
+
+            if self.cache is not None and data and cache_key:
+                self.cache[cache_key] = data
+
             return data
         except json.JSONDecodeError as e:
             logger.error(f"Error parsing JSON: {e}")
@@ -136,7 +172,7 @@ class PWHLApiClient:
         endpoint_config = API_ENDPOINTS["player_info"]
         params = endpoint_config["params"].copy()
         params["player_id"] = str(player_id)
-        return self.fetch_data(endpoint_config["path"], params)
+        return self._call_endpoint("player_info", {"player_id": str(player_id)})
 
     def fetch_player_season_stats(self, player_id: int, category: str = "seasonstats") -> Optional[Dict]:
         """
