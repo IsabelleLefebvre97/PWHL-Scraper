@@ -13,7 +13,7 @@ from pwhl_scraper.scrapers.basic_info import (
     update_seasons, update_teams, update_basic_info
 )
 from pwhl_scraper.scrapers.players import update_players, fetch_player_roster, update_player
-from pwhl_scraper.scrapers.games import update_games, update_game_details
+from pwhl_scraper.scrapers.games import update_games
 from pwhl_scraper.scrapers.stats import (
     update_team_stats, update_skater_stats, update_goalie_stats
 )
@@ -487,24 +487,6 @@ class TestGamesScraper(TestScraperBase):
             cursor.execute("SELECT id, season_id, home_team, visiting_team FROM games")
             game = cursor.fetchone()
             self.assertEqual(game, (1, 1, 1, 2))
-
-    @patch('pwhl_scraper.scrapers.games.PWHLApiClient')
-    def test_update_game_details(self, mock_client_class):
-        """Test updating game details."""
-        # This is a simpler test since the function would require more extensive mocking
-        mock_client = mock_client_class.return_value
-
-        # Insert a test game
-        self.conn.execute(
-            "INSERT INTO games (id, season_id, home_team, visiting_team) VALUES (1, 1, 1, 2)"
-        )
-
-        # Test the function
-        with patch('pwhl_scraper.scrapers.games.fetch_game_details', return_value=None):
-            with patch('pwhl_scraper.scrapers.games.process_game_details', return_value=True):
-                result = update_game_details(self.db_path, game_id=1)
-                # With our mock setup, this should return 0
-                self.assertEqual(result, 0)
 
 
 class TestPlayByPlayScraper(TestScraperBase):

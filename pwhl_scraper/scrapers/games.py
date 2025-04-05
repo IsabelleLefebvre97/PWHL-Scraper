@@ -277,59 +277,6 @@ def update_games(db_path: str, season_id: Optional[int] = None) -> int:
     return updated_count
 
 
-def update_game_details(db_path: str, game_id: Optional[int] = None) -> int:
-    """
-    Update detailed game information for all games or a specific game.
-
-    Args:
-        db_path: Path to the SQLite database
-        game_id: Optional specific game ID to update
-
-    Returns:
-        Number of games updated with details
-    """
-    client = PWHLApiClient()
-    conn = create_connection(db_path)
-    updated_count = 0
-
-    try:
-        if game_id:
-            # Update details for a specific game
-            logger.info(f"Updating details for game ID {game_id}")
-
-            # Fetch game details
-            game_details = fetch_game_details(client, game_id)
-
-            # Update the game details if found
-            if game_details and process_game_details(conn, game_id, game_details):
-                updated_count += 1
-        else:
-            # Update details for all games
-            # Get all games from the database
-            games_query = "SELECT id FROM games ORDER BY id"
-            games = fetch_all(conn, games_query)
-
-            # Process each game
-            for (game_id,) in games:
-                logger.info(f"Processing game {game_id}")
-
-                # Fetch game details
-                game_details = fetch_game_details(client, game_id)
-
-                # Update the game details if found
-                if game_details and process_game_details(conn, game_id, game_details):
-                    updated_count += 1
-
-    except Exception as e:
-        logger.error(f"Error updating game details: {e}")
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-    return updated_count
-
-
 if __name__ == "__main__":
     # Configure logging
     logging.basicConfig(

@@ -12,7 +12,7 @@ from pwhl_scraper.config import configure_logging, DB_PATH
 from pwhl_scraper.database.db_manager import setup_database
 from pwhl_scraper.scrapers.basic_info import update_basic_info
 from pwhl_scraper.scrapers.players import update_players
-from pwhl_scraper.scrapers.games import update_games, update_game_details
+from pwhl_scraper.scrapers.games import update_games
 from pwhl_scraper.scrapers.stats import update_skater_stats, update_goalie_stats, update_team_stats
 from pwhl_scraper.scrapers.playoffs import update_playoffs
 from pwhl_scraper.scrapers.play_by_play import update_play_by_play
@@ -101,17 +101,6 @@ def run_update(args: argparse.Namespace) -> None:
         count = update_games(args.db_path)
         total_updates += count
         logger.info(f"Updated {count} game records.")
-
-    # Game details
-    if update_all or args.game_details:
-        if args.game_id:
-            logger.info(f"Updating details for game ID {args.game_id}...")
-            count = update_game_details(args.db_path, game_id=args.game_id)
-        else:
-            logger.info("Updating all game details...")
-            count = update_game_details(args.db_path)
-        total_updates += count
-        logger.info(f"Updated {count} game detail records.")
 
     # Playoffs
     if update_all or args.playoffs:

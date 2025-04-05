@@ -2349,3 +2349,65 @@
 2025-04-05 16:08:17,113 - pwhl_scraper.database.db_manager - INFO - Creating indexes for play_by_play
 2025-04-05 16:08:17,160 - pwhl_scraper.database.db_manager - INFO - Database setup complete
 2025-04-05 16:08:17,161 - pwhl_scraper.cli - INFO - Database setup complete.
+2025-04-05 16:31:42,579 - pwhl_scraper.cli - INFO - Setting up database...
+2025-04-05 16:31:42,580 - pwhl_scraper.database.db_manager - INFO - Setting up database at /Users/isabellelefebvre/PycharmProjects/PWHL-Scraper/data/pwhl_data.db
+2025-04-05 16:31:42,589 - pwhl_scraper.database.db_manager - INFO - Table leagues created or already exists
+2025-04-05 16:31:42,589 - pwhl_scraper.database.db_manager - INFO - Created table: leagues
+2025-04-05 16:31:42,590 - pwhl_scraper.database.db_manager - INFO - Table conferences created or already exists
+2025-04-05 16:31:42,590 - pwhl_scraper.database.db_manager - INFO - Created table: conferences
+2025-04-05 16:31:42,592 - pwhl_scraper.database.db_manager - INFO - Table divisions created or already exists
+2025-04-05 16:31:42,592 - pwhl_scraper.database.db_manager - INFO - Created table: divisions
+2025-04-05 16:31:42,593 - pwhl_scraper.database.db_manager - INFO - Table seasons created or already exists
+2025-04-05 16:31:42,593 - pwhl_scraper.database.db_manager - INFO - Created table: seasons
+2025-04-05 16:31:42,594 - pwhl_scraper.database.db_manager - INFO - Table teams created or already exists
+2025-04-05 16:31:42,594 - pwhl_scraper.database.db_manager - INFO - Created table: teams
+2025-04-05 16:31:42,595 - pwhl_scraper.database.db_manager - INFO - Table players created or already exists
+2025-04-05 16:31:42,595 - pwhl_scraper.database.db_manager - INFO - Created table: players
+2025-04-05 16:31:42,596 - pwhl_scraper.database.db_manager - INFO - Table games created or already exists
+2025-04-05 16:31:42,596 - pwhl_scraper.database.db_manager - INFO - Created table: games
+2025-04-05 16:31:42,598 - pwhl_scraper.database.db_manager - INFO - Table playoff_rounds created or already exists
+2025-04-05 16:31:42,598 - pwhl_scraper.database.db_manager - INFO - Created table: playoff_rounds
+2025-04-05 16:31:42,599 - pwhl_scraper.database.db_manager - INFO - Table playoff_series created or already exists
+2025-04-05 16:31:42,600 - pwhl_scraper.database.db_manager - INFO - Created table: playoff_series
+2025-04-05 16:31:42,601 - pwhl_scraper.database.db_manager - INFO - Table playoff_games created or already exists
+2025-04-05 16:31:42,601 - pwhl_scraper.database.db_manager - INFO - Created table: playoff_games
+2025-04-05 16:31:42,602 - pwhl_scraper.database.db_manager - INFO - Table season_stats_teams created or already exists
+2025-04-05 16:31:42,602 - pwhl_scraper.database.db_manager - INFO - Created table: season_stats_teams
+2025-04-05 16:31:42,604 - pwhl_scraper.database.db_manager - INFO - Table season_stats_skaters created or already exists
+2025-04-05 16:31:42,604 - pwhl_scraper.database.db_manager - INFO - Created table: season_stats_skaters
+2025-04-05 16:31:42,606 - pwhl_scraper.database.db_manager - INFO - Table season_stats_goalies created or already exists
+2025-04-05 16:31:42,606 - pwhl_scraper.database.db_manager - INFO - Created table: season_stats_goalies
+2025-04-05 16:31:42,607 - pwhl_scraper.database.db_manager - INFO - Table game_stats_teams created or already exists
+2025-04-05 16:31:42,607 - pwhl_scraper.database.db_manager - INFO - Created table: game_stats_teams
+2025-04-05 16:31:42,609 - pwhl_scraper.database.db_manager - INFO - Table game_stats_skaters created or already exists
+2025-04-05 16:31:42,609 - pwhl_scraper.database.db_manager - INFO - Created table: game_stats_skaters
+2025-04-05 16:31:42,611 - pwhl_scraper.database.db_manager - INFO - Table game_stats_goalies created or already exists
+2025-04-05 16:31:42,611 - pwhl_scraper.database.db_manager - INFO - Created table: game_stats_goalies
+2025-04-05 16:31:42,613 - pwhl_scraper.database.db_manager - INFO - Table pbp_goalie_changes created or already exists
+2025-04-05 16:31:42,613 - pwhl_scraper.database.db_manager - INFO - Created table: pbp_goalie_changes
+2025-04-05 16:31:42,614 - pwhl_scraper.database.db_manager - INFO - Table pbp_faceoffs created or already exists
+2025-04-05 16:31:42,614 - pwhl_scraper.database.db_manager - INFO - Created table: pbp_faceoffs
+2025-04-05 16:31:42,615 - pwhl_scraper.database.db_manager - INFO - Table pbp_hits created or already exists
+2025-04-05 16:31:42,615 - pwhl_scraper.database.db_manager - INFO - Created table: pbp_hits
+2025-04-05 16:31:42,617 - pwhl_scraper.database.db_manager - INFO - Table pbp_shots created or already exists
+2025-04-05 16:31:42,617 - pwhl_scraper.database.db_manager - INFO - Created table: pbp_shots
+2025-04-05 16:31:42,619 - pwhl_scraper.database.db_manager - INFO - Table pbp_blocked_shots created or already exists
+2025-04-05 16:31:42,619 - pwhl_scraper.database.db_manager - INFO - Created table: pbp_blocked_shots
+2025-04-05 16:31:42,621 - pwhl_scraper.database.db_manager - INFO - Table pbp_goals created or already exists
+2025-04-05 16:31:42,621 - pwhl_scraper.database.db_manager - INFO - Created table: pbp_goals
+2025-04-05 16:31:42,622 - pwhl_scraper.database.db_manager - INFO - Table pbp_goals_plus created or already exists
+2025-04-05 16:31:42,622 - pwhl_scraper.database.db_manager - INFO - Created table: pbp_goals_plus
+2025-04-05 16:31:42,624 - pwhl_scraper.database.db_manager - INFO - Table pbp_goals_minus created or already exists
+2025-04-05 16:31:42,624 - pwhl_scraper.database.db_manager - INFO - Created table: pbp_goals_minus
+2025-04-05 16:31:42,626 - pwhl_scraper.database.db_manager - INFO - Table pbp_penalties created or already exists
+2025-04-05 16:31:42,626 - pwhl_scraper.database.db_manager - INFO - Created table: pbp_penalties
+2025-04-05 16:31:42,627 - pwhl_scraper.database.db_manager - INFO - Table pbp_shootouts created or already exists
+2025-04-05 16:31:42,627 - pwhl_scraper.database.db_manager - INFO - Created table: pbp_shootouts
+2025-04-05 16:31:42,627 - pwhl_scraper.database.db_manager - INFO - Creating indexes for players
+2025-04-05 16:31:42,635 - pwhl_scraper.database.db_manager - INFO - Creating indexes for games
+2025-04-05 16:31:42,639 - pwhl_scraper.database.db_manager - INFO - Creating indexes for playoffs
+2025-04-05 16:31:42,643 - pwhl_scraper.database.db_manager - INFO - Creating indexes for season_stats
+2025-04-05 16:31:42,651 - pwhl_scraper.database.db_manager - INFO - Creating indexes for game_stats
+2025-04-05 16:31:42,661 - pwhl_scraper.database.db_manager - INFO - Creating indexes for play_by_play
+2025-04-05 16:31:42,716 - pwhl_scraper.database.db_manager - INFO - Database setup complete
+2025-04-05 16:31:42,716 - pwhl_scraper.cli - INFO - Database setup complete.
