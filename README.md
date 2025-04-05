@@ -186,5 +186,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgments
 
-- The PWHL for creating an exciting new professional women's hockey league
-- The HockeyTech API for providing access to the data
+- Thank you to the PWHL for inspiring and empowering young—and not so young—girls and women.
