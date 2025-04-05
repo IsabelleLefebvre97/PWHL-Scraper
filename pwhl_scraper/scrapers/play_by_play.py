@@ -58,8 +58,8 @@ def process_game_play_by_play(conn: sqlite3.Connection, game_id: int, season_id:
         return 0
 
     # Get team information for the game
-    home_team_id, away_team_id = get_game_teams(conn, game_id)
-    if not home_team_id or not away_team_id:
+    home_team, visiting_team = get_game_teams(conn, game_id)
+    if not home_team or not visiting_team:
         logger.error(f"Could not determine teams for game {game_id}")
         return 0
 
@@ -72,35 +72,35 @@ def process_game_play_by_play(conn: sqlite3.Connection, game_id: int, season_id:
 
         try:
             if event_type == 'goalie_change':
-                if process_goalie_change(conn, event, game_id, season_id, home_team_id, away_team_id):
+                if process_goalie_change(conn, event, game_id, season_id, home_team, visiting_team):
                     total_processed += 1
 
             elif event_type == 'faceoff':
-                if process_faceoff(conn, event, game_id, season_id, home_team_id, away_team_id):
+                if process_faceoff(conn, event, game_id, season_id, home_team, visiting_team):
                     total_processed += 1
 
             elif event_type == 'hit':
-                if process_hit(conn, event, game_id, season_id, home_team_id, away_team_id):
+                if process_hit(conn, event, game_id, season_id, home_team, visiting_team):
                     total_processed += 1
 
             elif event_type == 'shot':
-                if process_shot(conn, event, game_id, season_id, home_team_id, away_team_id):
+                if process_shot(conn, event, game_id, season_id, home_team, visiting_team):
                     total_processed += 1
 
             elif event_type == 'blocked_shot':
-                if process_blocked_shot(conn, event, game_id, season_id, home_team_id, away_team_id):
+                if process_blocked_shot(conn, event, game_id, season_id, home_team, visiting_team):
                     total_processed += 1
 
             elif event_type == 'goal':
-                if process_goal(conn, event, game_id, season_id, home_team_id, away_team_id):
+                if process_goal(conn, event, game_id, season_id, home_team, visiting_team):
                     total_processed += 1
 
             elif event_type == 'penalty':
-                if process_penalty(conn, event, game_id, season_id, home_team_id, away_team_id):
+                if process_penalty(conn, event, game_id, season_id, home_team, visiting_team):
                     total_processed += 1
 
             elif event_type == 'shootout':
-                if process_shootout(conn, event, game_id, season_id, home_team_id, away_team_id):
+                if process_shootout(conn, event, game_id, season_id, home_team, visiting_team):
                     total_processed += 1
 
         except Exception as e:
@@ -121,7 +121,7 @@ def get_game_teams(conn: sqlite3.Connection, game_id: int) -> Tuple[Optional[int
         game_id: Game ID
 
     Returns:
-        Tuple of (home_team_id, away_team_id)
+        Tuple of (home_team, visiting_team)
     """
     cursor = conn.cursor()
     cursor.execute(
@@ -137,7 +137,7 @@ def get_game_teams(conn: sqlite3.Connection, game_id: int) -> Tuple[Optional[int
 
 def process_goalie_change(conn: sqlite3.Connection, event: Dict[str, Any],
                           game_id: int, season_id: int,
-                          home_team_id: int, away_team_id: int) -> bool:
+                          home_team: int, visiting_team: int) -> bool:
     """
     Process a goalie change event and store it in the database.
 
@@ -146,8 +146,8 @@ def process_goalie_change(conn: sqlite3.Connection, event: Dict[str, Any],
         event: Goalie change event data
         game_id: Game ID
         season_id: Season ID
-        home_team_id: Home team ID
-        away_team_id: Away team ID
+        home_team: Home team ID
+        visiting_team: Away team ID
 
     Returns:
         True if processed successfully, False otherwise
@@ -163,7 +163,7 @@ def process_goalie_change(conn: sqlite3.Connection, event: Dict[str, Any],
     time = event.get('time', '')
     seconds = int(event.get('s', 0))
     team_id = int(event.get('team_id', 0))
-    opponent_team_id = away_team_id if team_id == home_team_id else home_team_id
+    opponent_team_id = visiting_team if team_id == home_team else home_team
 
     # Get goalie IDs, handle possible None values
     goalie_in_id = event.get('goalie_in_id')
@@ -215,7 +215,7 @@ def process_goalie_change(conn: sqlite3.Connection, event: Dict[str, Any],
 
 def process_faceoff(conn: sqlite3.Connection, event: Dict[str, Any],
                     game_id: int, season_id: int,
-                    home_team_id: int, away_team_id: int) -> bool:
+                    home_team: int, visiting_team: int) -> bool:
     """
     Process a faceoff event and store it in the database.
 
@@ -224,8 +224,8 @@ def process_faceoff(conn: sqlite3.Connection, event: Dict[str, Any],
         event: Faceoff event data
         game_id: Game ID
         season_id: Season ID
-        home_team_id: Home team ID
-        away_team_id: Away team ID
+        home_team: Home team ID
+        visiting_team: Away team ID
 
     Returns:
         True if processed successfully, False otherwise
@@ -248,7 +248,7 @@ def process_faceoff(conn: sqlite3.Connection, event: Dict[str, Any],
 
     # Determine the winning team
     win_team_id = int(event.get('win_team_id', 0))
-    opponent_team_id = away_team_id if win_team_id == home_team_id else home_team_id
+    opponent_team_id = visiting_team if win_team_id == home_team else home_team
 
     # Location data
     x_location = int(event.get('x_location', 0))
@@ -300,7 +300,7 @@ def process_faceoff(conn: sqlite3.Connection, event: Dict[str, Any],
 
 def process_hit(conn: sqlite3.Connection, event: Dict[str, Any],
                 game_id: int, season_id: int,
-                home_team_id: int, away_team_id: int) -> bool:
+                home_team: int, visiting_team: int) -> bool:
     """
     Process a hit event and store it in the database.
 
@@ -309,8 +309,8 @@ def process_hit(conn: sqlite3.Connection, event: Dict[str, Any],
         event: Hit event data
         game_id: Game ID
         season_id: Season ID
-        home_team_id: Home team ID
-        away_team_id: Away team ID
+        home_team: Home team ID
+        visiting_team: Away team ID
 
     Returns:
         True if processed successfully, False otherwise
@@ -328,7 +328,7 @@ def process_hit(conn: sqlite3.Connection, event: Dict[str, Any],
 
     player_id = int(event.get('player_id', 0))
     team_id = int(event.get('team_id', 0))
-    opponent_team_id = away_team_id if team_id == home_team_id else home_team_id
+    opponent_team_id = visiting_team if team_id == home_team else home_team
 
     home = event.get('home') == '1'
 
@@ -384,7 +384,7 @@ def process_hit(conn: sqlite3.Connection, event: Dict[str, Any],
 
 def process_shot(conn: sqlite3.Connection, event: Dict[str, Any],
                  game_id: int, season_id: int,
-                 home_team_id: int, away_team_id: int) -> bool:
+                 home_team: int, visiting_team: int) -> bool:
     """
     Process a shot event and store it in the database.
 
@@ -393,8 +393,8 @@ def process_shot(conn: sqlite3.Connection, event: Dict[str, Any],
         event: Shot event data
         game_id: Game ID
         season_id: Season ID
-        home_team_id: Home team ID
-        away_team_id: Away team ID
+        home_team: Home team ID
+        visiting_team: Away team ID
 
     Returns:
         True if processed successfully, False otherwise
@@ -409,7 +409,7 @@ def process_shot(conn: sqlite3.Connection, event: Dict[str, Any],
     goalie_id = int(event.get('goalie_id', 0)) if event.get('goalie_id') else None
 
     team_id = int(event.get('player_team_id', event.get('team_id', 0)))
-    opponent_team_id = away_team_id if team_id == home_team_id else home_team_id
+    opponent_team_id = visiting_team if team_id == home_team else home_team
 
     home = event.get('home') == '1'
 
@@ -481,7 +481,7 @@ def process_shot(conn: sqlite3.Connection, event: Dict[str, Any],
 
 def process_blocked_shot(conn: sqlite3.Connection, event: Dict[str, Any],
                          game_id: int, season_id: int,
-                         home_team_id: int, away_team_id: int) -> bool:
+                         home_team: int, visiting_team: int) -> bool:
     """
     Process a blocked shot event and store it in the database.
 
@@ -490,8 +490,8 @@ def process_blocked_shot(conn: sqlite3.Connection, event: Dict[str, Any],
         event: Blocked shot event data
         game_id: Game ID
         season_id: Season ID
-        home_team_id: Home team ID
-        away_team_id: Away team ID
+        home_team: Home team ID
+        visiting_team: Away team ID
 
     Returns:
         True if processed successfully, False otherwise
@@ -578,7 +578,7 @@ def process_blocked_shot(conn: sqlite3.Connection, event: Dict[str, Any],
 
 def process_goal(conn: sqlite3.Connection, event: Dict[str, Any],
                  game_id: int, season_id: int,
-                 home_team_id: int, away_team_id: int) -> bool:
+                 home_team: int, visiting_team: int) -> bool:
     """
     Process a goal event and store it in the database.
 
@@ -587,8 +587,8 @@ def process_goal(conn: sqlite3.Connection, event: Dict[str, Any],
         event: Goal event data
         game_id: Game ID
         season_id: Season ID
-        home_team_id: Home team ID
-        away_team_id: Away team ID
+        home_team: Home team ID
+        visiting_team: Away team ID
 
     Returns:
         True if processed successfully, False otherwise
@@ -600,7 +600,7 @@ def process_goal(conn: sqlite3.Connection, event: Dict[str, Any],
 
     # Extract data from the event
     team_id = int(event.get('team_id', 0))
-    opponent_team_id = away_team_id if team_id == home_team_id else home_team_id
+    opponent_team_id = visiting_team if team_id == home_team else home_team
 
     home = event.get('home') == '1'
 
@@ -802,7 +802,7 @@ def process_goal_minus_players(conn: sqlite3.Connection, goal_id: str,
 
 def process_penalty(conn: sqlite3.Connection, event: Dict[str, Any],
                     game_id: int, season_id: int,
-                    home_team_id: int, away_team_id: int) -> bool:
+                    home_team: int, visiting_team: int) -> bool:
     """
     Process a penalty event and store it in the database.
 
@@ -811,8 +811,8 @@ def process_penalty(conn: sqlite3.Connection, event: Dict[str, Any],
         event: Penalty event data
         game_id: Game ID
         season_id: Season ID
-        home_team_id: Home team ID
-        away_team_id: Away team ID
+        home_team: Home team ID
+        visiting_team: Away team ID
 
     Returns:
         True if processed successfully, False otherwise
@@ -827,7 +827,7 @@ def process_penalty(conn: sqlite3.Connection, event: Dict[str, Any],
     player_served = int(event.get('player_served', 0))
 
     team_id = int(event.get('team_id', 0))
-    opponent_team_id = away_team_id if team_id == home_team_id else home_team_id
+    opponent_team_id = visiting_team if team_id == home_team else home_team
 
     home = event.get('home') == '1'
 
@@ -898,7 +898,7 @@ def process_penalty(conn: sqlite3.Connection, event: Dict[str, Any],
 
 def process_shootout(conn: sqlite3.Connection, event: Dict[str, Any],
                      game_id: int, season_id: int,
-                     home_team_id: int, away_team_id: int) -> bool:
+                     home_team: int, visiting_team: int) -> bool:
     """
     Process a shootout event and store it in the database.
 
@@ -907,8 +907,8 @@ def process_shootout(conn: sqlite3.Connection, event: Dict[str, Any],
         event: Shootout event data
         game_id: Game ID
         season_id: Season ID
-        home_team_id: Home team ID
-        away_team_id: Away team ID
+        home_team: Home team ID
+        visiting_team: Away team ID
 
     Returns:
         True if processed successfully, False otherwise
@@ -923,7 +923,7 @@ def process_shootout(conn: sqlite3.Connection, event: Dict[str, Any],
     goalie_id = int(event.get('goalie_id', 0)) if event.get('goalie_id') else None
 
     team_id = int(event.get('team_id', 0))
-    opponent_team_id = away_team_id if team_id == home_team_id else home_team_id
+    opponent_team_id = visiting_team if team_id == home_team else home_team
 
     home = event.get('home') == '1'
 
@@ -1063,7 +1063,7 @@ def update_play_by_play(db_path: str, game_id: Optional[int] = None, limit: Opti
         elif force_all:
             # Process all games regardless of existing play-by-play data
             cursor = conn.cursor()
-            cursor.execute("SELECT id, season_id FROM games WHERE game_status = 'Final'")
+            cursor.execute("SELECT id, season_id FROM games WHERE status = '4'")
             games_to_process = cursor.fetchall()
             logger.info(f"Found {len(games_to_process)} completed games to process")
 
