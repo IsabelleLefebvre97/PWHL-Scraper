@@ -12,10 +12,10 @@ This module fetches and updates detailed play-by-play information for each game 
 """
 import sqlite3
 import logging
+import uuid
 from typing import Dict, Any, List, Optional, Tuple
-
 from pwhl_scraper.api.client import PWHLApiClient
-from pwhl_scraper.database.db_manager import create_connection, execute_query, fetch_one, fetch_all
+from pwhl_scraper.database.db_manager import create_connection
 
 logger = logging.getLogger(__name__)
 
@@ -32,20 +32,39 @@ def process_game_play_by_play(conn: sqlite3.Connection, game_id: int, season_id:
     Returns:
         Number of events processed
     """
+    # Create a custom client for play-by-play data
     client = PWHLApiClient()
-    pbp_data = client.fetch_play_by_play(game_id)
 
-    if not pbp_data or 'GC' not in pbp_data or 'Pxpverbose' not in pbp_data['GC']:
-        logger.warning(f"No play-by-play data found for game {game_id}")
+    # Direct call to fetch play-by-play data with correct parameters
+    params = {
+        "feed": "gc",
+        "game_id": str(game_id),
+        "key": "446521baf8c38984",
+        "client_code": "pwhl",
+        "tab": "pxpverbose",
+        "fmt": "json"
+    }
+
+    logger.info(f"Fetching play-by-play data for game {game_id}")
+    pbp_data = client.fetch_data("index.php", params)
+
+    if not pbp_data:
+        logger.warning(f"No data returned for game {game_id}")
+        return 0
+
+    if 'GC' not in pbp_data or 'Pxpverbose' not in pbp_data['GC']:
+        logger.warning(
+            f"No play-by-play data found for game {game_id}, response: {pbp_data.keys() if pbp_data else None}")
         return 0
 
     # Get team information for the game
-    home_team, visiting_team = get_game_teams(conn, game_id)
-    if not home_team or not visiting_team:
+    home_team_id, away_team_id = get_game_teams(conn, game_id)
+    if not home_team_id or not away_team_id:
         logger.error(f"Could not determine teams for game {game_id}")
         return 0
 
     events = pbp_data['GC']['Pxpverbose']
+    logger.info(f"Found {len(events)} events for game {game_id}")
     total_processed = 0
 
     for event in events:
@@ -137,7 +156,7 @@ def process_goalie_change(conn: sqlite3.Connection, event: Dict[str, Any],
 
     # Generate a unique ID for this event
     event_id = f"{game_id}_goalie_{event.get('period_id', '')}_" \
-               f"{event.get('time', '').replace(':', '_')}_{event.get('team_code', '')}"
+               f"{event.get('s', '')}_{event.get('team_code', '')}"
 
     # Extract data from the event
     period = int(event.get('period_id', 0))
@@ -214,7 +233,7 @@ def process_faceoff(conn: sqlite3.Connection, event: Dict[str, Any],
     cursor = conn.cursor()
 
     # Use the event ID from the data or generate a unique ID
-    event_id = f"{game_id}_faceoff_{event.get('period', '')}_{event.get('time_formatted', '').replace(':', '_')}"
+    event_id = f"{game_id}_faceoff_{event.get('period', '')}_{event.get('s', '')}"
 
     # Extract data from the event
     period = int(event.get('period', 0))
@@ -492,7 +511,7 @@ def process_blocked_shot(conn: sqlite3.Connection, event: Dict[str, Any],
 
     home = event.get('home') == '1'
 
-    period = int(event.get('period', 0))
+    period = int(event.get('period_id', 0))
     time = event.get('time', '')
     time_formatted = event.get('time_formatted', '')
     seconds = int(event.get('seconds', event.get('s', 0)))
@@ -597,13 +616,7 @@ def process_goal(conn: sqlite3.Connection, event: Dict[str, Any],
     if assist2_player_id == '':
         assist2_player_id = None
 
-    # Handle period format (removing suffixes like "st", "nd", etc.)
-    period_str = event.get('period', '')
-    if period_str:
-        period_str = period_str.replace('st', '').replace('nd', '').replace('rd', '').replace('th', '')
-        period = int(period_str) if period_str.isdigit() else 0
-    else:
-        period = 0
+    period = event.get('period_id', '')
 
     time = event.get('time', '')
     time_formatted = event.get('time_formatted', '')
@@ -818,13 +831,7 @@ def process_penalty(conn: sqlite3.Connection, event: Dict[str, Any],
 
     home = event.get('home') == '1'
 
-    # Handle period format (removing suffixes like "st", "nd", etc.)
-    period_str = event.get('period', '')
-    if period_str:
-        period_str = period_str.replace('st', '').replace('nd', '').replace('rd', '').replace('th', '')
-        period = int(period_str) if period_str.isdigit() else 0
-    else:
-        period = 0
+    period = event.get('period_id', '')
 
     time_off_formatted = event.get('time_off_formatted', '')
     minutes = float(event.get('minutes', 0))
@@ -978,6 +985,11 @@ def get_games_without_play_by_play(conn: sqlite3.Connection) -> List[Tuple[int, 
     """
     cursor = conn.cursor()
 
+    # First, check if there are any games in the database
+    cursor.execute("SELECT COUNT(*) FROM games")
+    total_games = cursor.fetchone()[0]
+    logger.info(f"Total games in database: {total_games}")
+
     # Find games that don't have any records in the play-by-play tables
     query = """
     SELECT g.id, g.season_id
@@ -993,12 +1005,14 @@ def get_games_without_play_by_play(conn: sqlite3.Connection) -> List[Tuple[int, 
         UNION SELECT DISTINCT game_id FROM pbp_shootouts
     ) pbp ON g.id = pbp.game_id
     WHERE pbp.game_id IS NULL
-    AND g.status = 'Final'
+    AND g.status = 4
     ORDER BY g.id
     """
 
     cursor.execute(query)
-    return cursor.fetchall()
+    games = cursor.fetchall()
+    logger.info(f"Found {len(games)} games with status '4' (Final) without play-by-play data")
+    return games
 
 
 def get_season_id_for_game(conn: sqlite3.Connection, game_id: int) -> Optional[int]:
@@ -1019,7 +1033,8 @@ def get_season_id_for_game(conn: sqlite3.Connection, game_id: int) -> Optional[i
     return result[0] if result else None
 
 
-def update_play_by_play(db_path: str, game_id: Optional[int] = None, limit: Optional[int] = None) -> int:
+def update_play_by_play(db_path: str, game_id: Optional[int] = None, limit: Optional[int] = None,
+                        force_all: bool = False) -> int:
     """
     Update play-by-play data for all games without it or a specific game.
 
@@ -1027,6 +1042,7 @@ def update_play_by_play(db_path: str, game_id: Optional[int] = None, limit: Opti
         db_path: Path to the SQLite database
         game_id: Optional specific game ID to update
         limit: Optional limit on the number of games to process
+        force_all: If True, process all games regardless of existing play-by-play data
 
     Returns:
         Total number of events processed
@@ -1044,8 +1060,22 @@ def update_play_by_play(db_path: str, game_id: Optional[int] = None, limit: Opti
                 logger.info(f"Processed game {game_id}: {events_processed} events")
             else:
                 logger.error(f"Could not find season_id for game {game_id}")
+        elif force_all:
+            # Process all games regardless of existing play-by-play data
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, season_id FROM games WHERE game_status = 'Final'")
+            games_to_process = cursor.fetchall()
+            logger.info(f"Found {len(games_to_process)} completed games to process")
+
+            if limit:
+                games_to_process = games_to_process[:limit]
+
+            for game_id, season_id in games_to_process:
+                events_processed = process_game_play_by_play(conn, game_id, season_id)
+                total_processed += events_processed
+                logger.info(f"Processed game {game_id}: {events_processed} events")
         else:
-            # Process all games without play-by-play data
+            # Process only games without play-by-play data
             games_to_process = get_games_without_play_by_play(conn)
             logger.info(f"Found {len(games_to_process)} games without play-by-play data")
 
@@ -1082,7 +1112,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Update play-by-play data for PWHL games')
     parser.add_argument('--game-id', type=int, help='Specific game ID to update')
     parser.add_argument('--limit', type=int, help='Limit the number of games to process')
+    parser.add_argument('--force-all', action='store_true',
+                        help='Process all completed games, even those with existing play-by-play data')
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
 
     args = parser.parse_args()
 
-    update_play_by_play(DB_PATH, game_id=args.game_id, limit=args.limit)
+    # Set logging level based on debug flag
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    # Run with specified arguments
+    update_play_by_play(DB_PATH, game_id=args.game_id, limit=args.limit, force_all=args.force_all)
