@@ -4,10 +4,11 @@ Database management utilities for PWHL Scraper.
 This module provides functions for database setup, connection management,
 and query execution.
 """
+
 import os
 import sqlite3
 import logging
-from typing import List, Dict, Any, Optional, Tuple, Union
+from typing import List, Dict, Any, Optional, Tuple
 
 from pwhl_scraper.database.models import DB_SCHEMA
 from pwhl_scraper.config import DB_PATH, DATA_DIR
@@ -38,7 +39,6 @@ def create_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
         # Enable foreign key constraints
         conn = sqlite3.connect(db_path)
         conn.execute("PRAGMA foreign_keys = ON")
-
         return conn
     except sqlite3.Error as e:
         logger.error(f"Database connection error: {e}")
@@ -66,7 +66,6 @@ def execute_query(conn: sqlite3.Connection, query: str, params: Optional[Tuple] 
             cursor.execute(query, params)
         else:
             cursor.execute(query)
-
         conn.commit()
         return cursor.rowcount
     except sqlite3.Error as e:
@@ -127,7 +126,6 @@ def fetch_all(conn: sqlite3.Connection, query: str, params: Optional[Tuple] = No
             cursor.execute(query, params)
         else:
             cursor.execute(query)
-
         return cursor.fetchall()
     except sqlite3.Error as e:
         logger.error(f"Query error: {e}")
@@ -158,7 +156,6 @@ def fetch_one(conn: sqlite3.Connection, query: str, params: Optional[Tuple] = No
             cursor.execute(query, params)
         else:
             cursor.execute(query)
-
         return cursor.fetchone()
     except sqlite3.Error as e:
         logger.error(f"Query error: {e}")
@@ -203,7 +200,6 @@ def create_indexes(conn: sqlite3.Connection, indexes: List[str]) -> None:
         sqlite3.Error: If index creation fails
     """
     cursor = conn.cursor()
-
     for index_sql in indexes:
         try:
             cursor.execute(index_sql)
@@ -212,7 +208,6 @@ def create_indexes(conn: sqlite3.Connection, indexes: List[str]) -> None:
             logger.error(f"Index creation error: {e}")
             logger.debug(f"Index SQL: {index_sql}")
             # Continue with other indexes even if one fails
-
     conn.commit()
 
 
@@ -238,7 +233,6 @@ def setup_database(db_path: Optional[str] = None) -> None:
 
     # Connect to database
     conn = create_connection(db_path)
-
     try:
         # Create tables
         for table_name, table_info in DB_SCHEMA["tables"].items():
@@ -320,7 +314,6 @@ def get_table_info(conn: sqlite3.Connection, table_name: str) -> List[Dict[str, 
     cursor = conn.cursor()
     cursor.execute(f"PRAGMA table_info({table_name})")
     columns = []
-
     for row in cursor.fetchall():
         columns.append({
             "cid": row[0],
@@ -330,7 +323,6 @@ def get_table_info(conn: sqlite3.Connection, table_name: str) -> List[Dict[str, 
             "default": row[4],
             "pk": row[5]
         })
-
     return columns
 
 

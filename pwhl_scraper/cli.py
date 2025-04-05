@@ -7,7 +7,6 @@ import sys
 import argparse
 import logging
 import time
-from typing import List, Optional
 
 from pwhl_scraper.config import configure_logging, DB_PATH
 from pwhl_scraper.database.db_manager import setup_database
@@ -114,6 +113,17 @@ def run_update(args: argparse.Namespace) -> None:
         total_updates += count
         logger.info(f"Updated {count} game detail records.")
 
+    # Playoffs
+    if update_all or args.playoffs:
+        if args.season_id:
+            logger.info(f"Updating playoff information for season {args.season_id}...")
+            count = update_playoffs(args.db_path, season_id=args.season_id)
+        else:
+            logger.info("Updating all playoff information...")
+            count = update_playoffs(args.db_path)
+        total_updates += count
+        logger.info(f"Updated {count} playoff records.")
+
     # Stats
     if update_all or args.stats or args.skater_stats:
         if args.season_id:
@@ -144,17 +154,6 @@ def run_update(args: argparse.Namespace) -> None:
             count = update_team_stats(args.db_path)
         total_updates += count
         logger.info(f"Updated {count} team stat records.")
-
-    # Playoffs
-    if update_all or args.playoffs:
-        if args.season_id:
-            logger.info(f"Updating playoff information for season {args.season_id}...")
-            count = update_playoffs(args.db_path, season_id=args.season_id)
-        else:
-            logger.info("Updating all playoff information...")
-            count = update_playoffs(args.db_path)
-        total_updates += count
-        logger.info(f"Updated {count} playoff records.")
 
     # Play-by-play
     if update_all or args.play_by_play:

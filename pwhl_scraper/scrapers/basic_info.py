@@ -10,10 +10,10 @@ This module fetches and updates basic league information including:
 """
 import sqlite3
 import logging
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List
 
 from pwhl_scraper.api.client import PWHLApiClient
-from pwhl_scraper.database.db_manager import create_connection, execute_query, fetch_one
+from pwhl_scraper.database.db_manager import create_connection
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ def update_leagues(conn: sqlite3.Connection, leagues_data: List[Dict[str, Any]])
         name = league.get("name", "")
         short_name = league.get("short_name", "")
         code = league.get("code", "")
-        logo = league.get("logo_image", "")
+        logo_url = league.get("logo_image", "")
 
         # Check if league exists
         cursor.execute("SELECT id FROM leagues WHERE id = ?", (league_id,))
@@ -51,17 +51,17 @@ def update_leagues(conn: sqlite3.Connection, leagues_data: List[Dict[str, Any]])
             # Update existing league
             query = """
             UPDATE leagues 
-            SET name = ?, short_name = ?, code = ?, logo = ?
+            SET name = ?, short_name = ?, code = ?, logo_url = ?
             WHERE id = ?
             """
-            cursor.execute(query, (name, short_name, code, logo, league_id))
+            cursor.execute(query, (name, short_name, code, logo_url, league_id))
         else:
             # Insert new league
             query = """
-            INSERT INTO leagues (id, name, short_name, code, logo)
+            INSERT INTO leagues (id, name, short_name, code, logo_url)
             VALUES (?, ?, ?, ?, ?)
             """
-            cursor.execute(query, (league_id, name, short_name, code, logo))
+            cursor.execute(query, (league_id, name, short_name, code, logo_url))
 
         updated_count += 1
 
@@ -70,13 +70,14 @@ def update_leagues(conn: sqlite3.Connection, leagues_data: List[Dict[str, Any]])
     return updated_count
 
 
-def update_conferences(conn: sqlite3.Connection, conferences_data: List[Dict[str, Any]]) -> int:
+def update_conferences(conn: sqlite3.Connection, conferences_data: List[Dict[str, Any]], league_id: int) -> int:
     """
     Update conference information in the database.
 
     Args:
         conn: Database connection
         conferences_data: List of conference data dictionaries
+        league_id: League ID to associate with conferences
 
     Returns:
         Number of conferences added or updated
@@ -100,17 +101,17 @@ def update_conferences(conn: sqlite3.Connection, conferences_data: List[Dict[str
             # Update existing conference
             query = """
             UPDATE conferences 
-            SET name = ?
+            SET name = ?, league_id = ?
             WHERE id = ?
             """
-            cursor.execute(query, (name, conf_id))
+            cursor.execute(query, (name, league_id, conf_id))
         else:
             # Insert new conference
             query = """
-            INSERT INTO conferences (id, name)
-            VALUES (?, ?)
+            INSERT INTO conferences (id, name, league_id)
+            VALUES (?, ?, ?)
             """
-            cursor.execute(query, (conf_id, name))
+            cursor.execute(query, (conf_id, name, league_id))
 
         updated_count += 1
 
@@ -119,13 +120,14 @@ def update_conferences(conn: sqlite3.Connection, conferences_data: List[Dict[str
     return updated_count
 
 
-def update_divisions(conn: sqlite3.Connection, divisions_data: List[Dict[str, Any]]) -> int:
+def update_divisions(conn: sqlite3.Connection, divisions_data: List[Dict[str, Any]], league_id: int) -> int:
     """
     Update division information in the database.
 
     Args:
         conn: Database connection
         divisions_data: List of division data dictionaries
+        league_id: League ID to associate with divisions
 
     Returns:
         Number of divisions added or updated
@@ -141,6 +143,14 @@ def update_divisions(conn: sqlite3.Connection, divisions_data: List[Dict[str, An
 
         name = division.get("name", "")
 
+        # Try to get conference_id from the division data
+        conference_id = None
+        try:
+            if "conference_id" in division:
+                conference_id = int(division.get("conference_id"))
+        except (ValueError, TypeError):
+            pass
+
         # Check if division exists
         cursor.execute("SELECT id FROM divisions WHERE id = ?", (div_id,))
         exists = cursor.fetchone()
@@ -149,17 +159,17 @@ def update_divisions(conn: sqlite3.Connection, divisions_data: List[Dict[str, An
             # Update existing division
             query = """
             UPDATE divisions 
-            SET name = ?
+            SET name = ?, league_id = ?, conference_id = ?
             WHERE id = ?
             """
-            cursor.execute(query, (name, div_id))
+            cursor.execute(query, (name, league_id, conference_id, div_id))
         else:
             # Insert new division
             query = """
-            INSERT INTO divisions (id, name)
-            VALUES (?, ?)
+            INSERT INTO divisions (id, name, league_id, conference_id)
+            VALUES (?, ?, ?, ?)
             """
-            cursor.execute(query, (div_id, name))
+            cursor.execute(query, (div_id, name, league_id, conference_id))
 
         updated_count += 1
 
@@ -183,44 +193,20 @@ def update_seasons(conn: sqlite3.Connection, seasons_data: List[Dict[str, Any]])
     cursor = conn.cursor()
     updated_count = 0
 
-    # First, get the current season id from the API data
-    current_season_id = None
     for season in seasons_data:
-        # In some APIs the current season is indicated with a flag
-        if season.get("current", "0") == "1" or season.get("current") is True:
-            current_season_id = int(season.get("id", 0))
-            break
-
-    # If we couldn't find a current season marker, use the one with the highest ID
-    if current_season_id is None and seasons_data:
-        current_season_id = max(int(season.get("id", 0)) for season in seasons_data)
-
-    for season in seasons_data:
-        season_id = int(season.get("id", 0))
+        season_id = int(season.get("season_id", 0))
         if not season_id:
             continue
 
-        name = season.get("name", "")
+        name = season.get("season_name", "")
 
-        # Determine season type based on the name
-        if "Preseason" in name:
-            season_type = "Preseason"
-        elif "Playoffs" in name:
-            season_type = "Playoffs"
-        else:
-            season_type = "Regular Season"
+        # Get career and playoff flags
+        career = 1 if season.get("career") == "1" else 0
+        playoff = 1 if season.get("playoff") == "1" else 0
 
-        # Parse sort order
-        try:
-            sort = int(season.get("default_sort", 0))
-        except (ValueError, TypeError):
-            sort = 0
-
-        # Set current flag
-        current = 1 if season_id == current_season_id else 0
-
-        # Hide in standings flag
-        hide_in_standings = 1 if season.get("hide_in_standings") else 0
+        # Get dates
+        start_date = season.get("start_date", "")
+        end_date = season.get("end_date", "")
 
         # Check if season exists
         cursor.execute("SELECT id FROM seasons WHERE id = ?", (season_id,))
@@ -230,17 +216,17 @@ def update_seasons(conn: sqlite3.Connection, seasons_data: List[Dict[str, Any]])
             # Update existing season
             query = """
             UPDATE seasons 
-            SET sort = ?, name = ?, type = ?, current = ?, hide_in_standings = ?
+            SET name = ?, career = ?, playoff = ?, start_date = ?, end_date = ?
             WHERE id = ?
             """
-            cursor.execute(query, (sort, name, season_type, current, hide_in_standings, season_id))
+            cursor.execute(query, (name, career, playoff, start_date, end_date, season_id))
         else:
             # Insert new season
             query = """
-            INSERT INTO seasons (id, sort, name, type, current, hide_in_standings, start_date)
-            VALUES (?, ?, ?, ?, ?, ?, '')
+            INSERT INTO seasons (id, name, career, playoff, start_date, end_date)
+            VALUES (?, ?, ?, ?, ?, ?)
             """
-            cursor.execute(query, (season_id, sort, name, season_type, current, hide_in_standings))
+            cursor.execute(query, (season_id, name, career, playoff, start_date, end_date))
 
         updated_count += 1
 
@@ -268,10 +254,6 @@ def update_teams(conn: sqlite3.Connection, teams_data: List[Dict[str, Any]],
     updated_count = 0
 
     for team in teams_data:
-        # Skip "All Teams" dummy entry if present
-        if "all" in team.get("id", "").lower() or "all" in team.get("name", "").lower():
-            continue
-
         try:
             team_id = int(team.get("id", 0))
         except (ValueError, TypeError):
@@ -282,9 +264,9 @@ def update_teams(conn: sqlite3.Connection, teams_data: List[Dict[str, Any]],
 
         name = team.get("name", "")
         nickname = team.get("nickname", "")
-        code = team.get("team_code", "")
+        code = team.get("code", "")
         city = team.get("city", "")
-        logo = team.get("logo", "")
+        logo_url = team.get("team_logo_url", "")
 
         # Get division_id if present
         try:
@@ -302,8 +284,20 @@ def update_teams(conn: sqlite3.Connection, teams_data: List[Dict[str, Any]],
                 (division_id,)
             )
             result = cursor.fetchone()
-            if result and result[0]:
+            if result:
                 conference_id = result[0]
+
+            # If we couldn't find the conference_id through the division,
+            # ensure the division has the correct league_id
+            cursor.execute(
+                "UPDATE divisions SET league_id = ? WHERE id = ? AND (league_id IS NULL OR league_id != ?)",
+                (league_id, division_id, league_id)
+            )
+
+        # Ensure we have a valid conference_id before inserting/updating team
+        if conference_id is None and division_id is not None:
+            # Log a warning about the missing relation
+            logger.warning(f"Division {division_id} does not have an associated conference_id")
 
         # Check if team exists
         cursor.execute("SELECT id FROM teams WHERE id = ?", (team_id,))
@@ -313,12 +307,12 @@ def update_teams(conn: sqlite3.Connection, teams_data: List[Dict[str, Any]],
             # Update existing team
             query = """
             UPDATE teams 
-            SET name = ?, nickname = ?, code = ?, city = ?, logo = ?,
+            SET name = ?, nickname = ?, code = ?, city = ?, logo_url = ?,
                 league_id = ?, conference_id = ?, division_id = ?
             WHERE id = ?
             """
             cursor.execute(query, (
-                name, nickname, code, city, logo,
+                name, nickname, code, city, logo_url,
                 league_id, conference_id, division_id,
                 team_id
             ))
@@ -326,13 +320,13 @@ def update_teams(conn: sqlite3.Connection, teams_data: List[Dict[str, Any]],
             # Insert new team
             query = """
             INSERT INTO teams (
-                id, name, nickname, code, city, logo,
+                id, name, nickname, code, city, logo_url,
                 league_id, conference_id, division_id
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
             cursor.execute(query, (
-                team_id, name, nickname, code, city, logo,
+                team_id, name, nickname, code, city, logo_url,
                 league_id, conference_id, division_id
             ))
 
@@ -353,21 +347,26 @@ def get_current_season_id(conn: sqlite3.Connection) -> Optional[int]:
     Returns:
         Current season ID or None if not found
     """
+    # Get the most recent season based on start_date
     cursor = conn.cursor()
-    cursor.execute("SELECT id FROM seasons WHERE current = 1")
+    cursor.execute("""
+        SELECT id FROM seasons 
+        WHERE playoff = 0 AND career = 1
+        ORDER BY start_date DESC LIMIT 1
+    """)
     result = cursor.fetchone()
 
     if result:
         return result[0]
 
-    # If no current season is marked, get the one with the highest ID
+    # If no seasons found, get the one with the highest ID
     cursor.execute("SELECT id FROM seasons ORDER BY id DESC LIMIT 1")
     result = cursor.fetchone()
 
     return result[0] if result else None
 
 
-def update_basic_info(db_path: str) -> int:
+def update_basic_info(db_path: str) -> int | None:
     """
     Update basic information (leagues, conferences, divisions, seasons, teams).
 
@@ -386,20 +385,20 @@ def update_basic_info(db_path: str) -> int:
         bootstrap_data = client.fetch_basic_info()
 
         if bootstrap_data:
+            # Store current league ID for use throughout the process
+            league_id = int(bootstrap_data.get("current_league_id", 1))
+
             # Update leagues
             leagues_data = bootstrap_data.get("leagues", [])
             total_updated += update_leagues(conn, leagues_data)
 
-            # Update conferences
+            # Update conferences with league_id
             conferences_data = bootstrap_data.get("conferences", [])
-            total_updated += update_conferences(conn, conferences_data)
+            total_updated += update_conferences(conn, conferences_data, league_id)
 
-            # Update divisions
+            # Update divisions with league_id
             divisions_data = bootstrap_data.get("divisions", [])
-            total_updated += update_divisions(conn, divisions_data)
-
-            # Store current league ID for later
-            league_id = int(bootstrap_data.get("current_league_id", 1))
+            total_updated += update_divisions(conn, divisions_data, league_id)
         else:
             logger.error("Failed to fetch bootstrap data")
             league_id = 1  # Default to 1 if not available
@@ -407,8 +406,8 @@ def update_basic_info(db_path: str) -> int:
         # Get seasons data
         seasons_response = client.fetch_seasons_list()
 
-        if seasons_response:
-            seasons_data = seasons_response.get("seasons", [])
+        if seasons_response and 'Seasons' in seasons_response.get('SiteKit', {}):
+            seasons_data = seasons_response['SiteKit']['Seasons']
             total_updated += update_seasons(conn, seasons_data)
         else:
             logger.error("Failed to fetch seasons data")
@@ -420,8 +419,8 @@ def update_basic_info(db_path: str) -> int:
             # Get teams data for the current season
             teams_response = client.fetch_teams_by_season(current_season_id)
 
-            if teams_response:
-                teams_data = teams_response.get("teams", [])
+            if teams_response and 'Teamsbyseason' in teams_response.get('SiteKit', {}):
+                teams_data = teams_response['SiteKit']['Teamsbyseason']
                 total_updated += update_teams(conn, teams_data, current_season_id, league_id)
             else:
                 logger.error(f"Failed to fetch teams data for season {current_season_id}")

@@ -301,7 +301,7 @@ class PWHLApiClient:
         endpoint_config = API_ENDPOINTS["team_roster"]
         params = endpoint_config["params"].copy()
         params["team_id"] = str(team_id)
-        params["season"] = str(season_id)
+        params["season_id"] = str(season_id)
         return self.fetch_data(endpoint_config["path"], params)
 
     def fetch_game_center(self, game_id: int, tab: str = "gamesummary") -> Optional[Dict]:

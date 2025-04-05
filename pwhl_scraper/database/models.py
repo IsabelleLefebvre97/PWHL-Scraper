@@ -4,7 +4,7 @@ Database models and schema definitions for PWHL Scraper.
 This module contains the database schema definition for the
 PWHL Scraper, including tables, indexes, and relationships.
 """
-from typing import Dict, Any, List
+from typing import List
 
 # Database schema definition
 DB_SCHEMA = {
@@ -27,7 +27,9 @@ DB_SCHEMA = {
             "schema": """
             CREATE TABLE IF NOT EXISTS conferences (
                 id INTEGER PRIMARY KEY,
-                name TEXT
+                name TEXT,
+                league_id INTEGER,
+                FOREIGN KEY (league_id) REFERENCES leagues(id)
             );
             """
         },
@@ -37,7 +39,11 @@ DB_SCHEMA = {
             "schema": """
             CREATE TABLE IF NOT EXISTS divisions (
                 id INTEGER PRIMARY KEY,
-                name TEXT
+                name TEXT,
+                league_id INTEGER,
+                conference_id INTEGER,
+                FOREIGN KEY (league_id) REFERENCES leagues(id),
+                FOREIGN KEY (conference_id) REFERENCES conferences(id)
             );
             """
         },
@@ -68,7 +74,10 @@ DB_SCHEMA = {
                 logo_url TEXT,
                 league_id INTEGER,
                 conference_id INTEGER,
-                division_id INTEGER
+                division_id INTEGER,
+                FOREIGN KEY (league_id) REFERENCES leagues(id),
+                FOREIGN KEY (conference_id) REFERENCES conferences(id),
+                FOREIGN KEY (division_id) REFERENCES divisions(id)
             );
             """
         },
@@ -110,31 +119,24 @@ DB_SCHEMA = {
             "schema": """
             CREATE TABLE IF NOT EXISTS games (
                 id INTEGER PRIMARY KEY,
+                season_id INTEGER,
                 game_number INTEGER,
                 date TEXT,
-                game_date TEXT,
-                game_time TEXT,
-                timezone TEXT,
                 home_team INTEGER,
-                visitor_team INTEGER,
-                home_goals INTEGER,
-                visitor_goals INTEGER,
+                visiting_team INTEGER,
+                home_goal_count INTEGER,
+                visiting_goal_count INTEGER,
                 periods INTEGER,
+                overtime BOOLEAN,
+                shootout BOOLEAN,
                 status INTEGER,
-                status_string TEXT,
+                game_status TEXT,
                 venue_name TEXT,
                 venue_location TEXT,
-                start_time TEXT,
-                end_time TEXT,
-                duration TEXT,
-                toi INTEGER,
                 attendance INTEGER,
-                game_report_url TEXT,
-                text_boxscore_url TEXT,
-                season_id INTEGER,
                 FOREIGN KEY (season_id) REFERENCES seasons(id),
                 FOREIGN KEY (home_team) REFERENCES teams(id),
-                FOREIGN KEY (visitor_team) REFERENCES teams(id)
+                FOREIGN KEY (visiting_team) REFERENCES teams(id)
             );
             """
         },
@@ -198,558 +200,546 @@ DB_SCHEMA = {
             FOREIGN KEY (game_id) REFERENCES games(id)
         );
         """
-        }
-    },
+        },
 
-    # Season Stats: Teams
-    "season_stats_teams": {
-        "schema": """
-            CREATE TABLE IF NOT EXISTS season_stats_teams (
-                id TEXT PRIMARY KEY,
-                season_id INTEGER,
-                team_id INTEGER,
-                name TEXT,
-                nickname TEXT,
-                city TEXT,
-                team_code TEXT,
-                division_id INTEGER,
-                wins INTEGER,
-                losses INTEGER,
-                ties INTEGER,
-                ot_losses INTEGER,
-                reg_ot_losses INTEGER,
-                reg_losses INTEGER,
-                ot_wins INTEGER,
-                shootout_wins INTEGER,
-                shootout_losses INTEGER,
-                regulation_wins INTEGER,
-                row INTEGER,
-                points INTEGER,
-                bench_minutes INTEGER,
-                penalty_minutes INTEGER,
-                goals_for INTEGER,
-                goals_against INTEGER,
-                goals_diff INTEGER,
-                power_play_goals INTEGER,
-                power_play_goals_against INTEGER,
-                shootout_goals INTEGER,
-                shootout_goals_against INTEGER,
-                shootout_attempts INTEGER,
-                shootout_attempts_against INTEGER,
-                short_handed_goals_for INTEGER,
-                short_handed_goals_against INTEGER,
-                percentage REAL,
-                percentage_full REAL,
-                shootout_games_played INTEGER,
-                games_played INTEGER,
-                shootout_pct REAL,
-                power_play_pct REAL,
-                shootout_pct_goals_for REAL,
-                shootout_pct_goals_against REAL,
-                penalty_kill_pct REAL,
-                pim_pg REAL,
-                power_plays INTEGER,
-                win_percentage REAL,
-                times_short_handed INTEGER,
-                shootout_record TEXT,
-                home_record TEXT,
-                visiting_record TEXT,
-                FOREIGN KEY (season_id) REFERENCES seasons(id),
-                FOREIGN KEY (team_id) REFERENCES teams(id)
-            );
-            """
-    },
+        # Season Stats: Teams
+        "season_stats_teams": {
+            "schema": """
+                CREATE TABLE IF NOT EXISTS season_stats_teams (
+                    id TEXT PRIMARY KEY,
+                    season_id INTEGER,
+                    team_id INTEGER,
+                    division_id INTEGER,
+                    wins INTEGER,
+                    losses INTEGER,
+                    ties INTEGER,
+                    ot_losses INTEGER,
+                    reg_ot_losses INTEGER,
+                    reg_losses INTEGER,
+                    ot_wins INTEGER,
+                    shootout_wins INTEGER,
+                    shootout_losses INTEGER,
+                    regulation_wins INTEGER,
+                    row INTEGER,
+                    points INTEGER,
+                    bench_minutes INTEGER,
+                    penalty_minutes INTEGER,
+                    goals_for INTEGER,
+                    goals_against INTEGER,
+                    goals_diff INTEGER,
+                    power_play_goals INTEGER,
+                    power_play_goals_against INTEGER,
+                    shootout_goals INTEGER,
+                    shootout_goals_against INTEGER,
+                    shootout_attempts INTEGER,
+                    shootout_attempts_against INTEGER,
+                    short_handed_goals_for INTEGER,
+                    short_handed_goals_against INTEGER,
+                    percentage REAL,
+                    percentage_full REAL,
+                    shootout_games_played INTEGER,
+                    games_played INTEGER,
+                    shootout_pct REAL,
+                    power_play_pct REAL,
+                    shootout_pct_goals_for REAL,
+                    shootout_pct_goals_against REAL,
+                    penalty_kill_pct REAL,
+                    pim_pg REAL,
+                    power_plays INTEGER,
+                    win_percentage REAL,
+                    times_short_handed INTEGER,
+                    shootout_record TEXT,
+                    home_record TEXT,
+                    visiting_record TEXT,
+                    FOREIGN KEY (season_id) REFERENCES seasons(id),
+                    FOREIGN KEY (team_id) REFERENCES teams(id)
+                );
+                """
+        },
 
-    # Season Stats: Skaters
-    "season_stats_skaters": {
-        "schema": """
-            CREATE TABLE IF NOT EXISTS season_stats_skaters (
+        # Season Stats: Skaters
+        "season_stats_skaters": {
+            "schema": """
+                CREATE TABLE IF NOT EXISTS season_stats_skaters (
+                    id TEXT PRIMARY KEY,
+                    player_id INTEGER,
+                    season_id INTEGER,
+                    team_id INTEGER,
+                    jersey_number INTEGER,
+                    shoots TEXT,
+                    games_played INTEGER,
+                    game_winning_goals INTEGER,
+                    game_tieing_goals INTEGER,
+                    first_goals INTEGER,
+                    insurance_goals INTEGER,
+                    unassisted_goals INTEGER,
+                    empty_net_goals INTEGER,
+                    overtime_goals INTEGER,
+                    ice_time INTEGER,
+                    ice_time_avg REAL,
+                    goals INTEGER,
+                    shots INTEGER,
+                    hits INTEGER,
+                    shots_blocked_by_player INTEGER,
+                    ice_time_minutes_seconds TEXT,
+                    shooting_percentage REAL,
+                    assists INTEGER,
+                    points INTEGER,
+                    points_per_game REAL,
+                    plus_minus INTEGER,
+                    penalty_minutes INTEGER,
+                    penalty_minutes_per_game REAL,
+                    minor_penalties INTEGER,
+                    major_penalties INTEGER,
+                    power_play_goals INTEGER,
+                    power_play_assists INTEGER,
+                    power_play_points INTEGER,
+                    short_handed_goals INTEGER,
+                    short_handed_assists INTEGER,
+                    short_handed_points INTEGER,
+                    shootout_goals INTEGER,
+                    shootout_attempts INTEGER,
+                    shootout_winning_goals INTEGER,
+                    shootout_games_played INTEGER,
+                    faceoff_attempts INTEGER,
+                    faceoff_wins INTEGER,
+                    faceoff_pct REAL,
+                    faceoff_wa TEXT,
+                    shots_on INTEGER,
+                    shootout_percentage REAL,
+                    FOREIGN KEY (player_id) REFERENCES players(id),
+                    FOREIGN KEY (season_id) REFERENCES seasons(id),
+                    FOREIGN KEY (team_id) REFERENCES teams(id)
+                );
+                """
+        },
+
+        # Season Stats: Goalies
+        "season_stats_goalies": {
+            "schema": """
+            CREATE TABLE IF NOT EXISTS season_stats_goalies (
                 id TEXT PRIMARY KEY,
                 player_id INTEGER,
                 season_id INTEGER,
                 team_id INTEGER,
                 jersey_number INTEGER,
                 shoots TEXT,
+                catches TEXT,
                 games_played INTEGER,
-                game_winning_goals INTEGER,
-                game_tieing_goals INTEGER,
-                first_goals INTEGER,
-                insurance_goals INTEGER,
-                unassisted_goals INTEGER,
-                empty_net_goals INTEGER,
-                overtime_goals INTEGER,
                 ice_time INTEGER,
                 ice_time_avg REAL,
-                goals INTEGER,
+                has_games_played BOOLEAN,
+                minutes_played TEXT,
+                minutes_played_g INTEGER,
+                seconds_played INTEGER,
+                saves INTEGER,
                 shots INTEGER,
+                save_percentage REAL,
+                goals_against INTEGER,
+                empty_net_goals_against INTEGER,
+                shutouts INTEGER,
+                wins INTEGER,
+                losses INTEGER,
+                ot_losses INTEGER,
+                total_losses INTEGER,
+                shootout_games_played INTEGER,
+                shootout_losses INTEGER,
+                shootout_wins INTEGER,
+                shootout_goals_against INTEGER,
+                shootout_saves INTEGER,
+                shootout_attempts INTEGER,
+                goals INTEGER,
+                assists INTEGER,
+                points INTEGER,
+                penalty_minutes INTEGER,
                 loose_ball_recoveries INTEGER,
                 caused_turnovers INTEGER,
                 turnovers INTEGER,
-                hits INTEGER,
-                shots_blocked_by_player INTEGER,
-                ice_time_minutes_seconds TEXT,
-                shooting_percentage REAL,
-                assists INTEGER,
-                points INTEGER,
-                points_per_game REAL,
-                plus_minus INTEGER,
-                penalty_minutes INTEGER,
-                penalty_minutes_per_game REAL,
-                minor_penalties INTEGER,
-                major_penalties INTEGER,
-                power_play_goals INTEGER,
-                power_play_assists INTEGER,
-                power_play_points INTEGER,
-                short_handed_goals INTEGER,
-                short_handed_assists INTEGER,
-                short_handed_points INTEGER,
-                shootout_goals INTEGER,
-                shootout_attempts INTEGER,
-                shootout_winning_goals INTEGER,
-                shootout_games_played INTEGER,
-                faceoff_attempts INTEGER,
-                faceoff_wins INTEGER,
-                faceoff_pct REAL,
-                faceoff_wa TEXT,
-                shots_on INTEGER,
                 shootout_percentage REAL,
-                latest_team_id INTEGER,
-                num_teams INTEGER,
+                ot INTEGER,
+                ties INTEGER,
+                shots_against_average REAL,
+                goals_against_average REAL,
                 FOREIGN KEY (player_id) REFERENCES players(id),
                 FOREIGN KEY (season_id) REFERENCES seasons(id),
                 FOREIGN KEY (team_id) REFERENCES teams(id)
             );
             """
-    },
+        },
 
-    # Season Stats: Goalies
-    "season_stats_goalies": {
-        "schema": """
-        CREATE TABLE IF NOT EXISTS season_stats_goalies (
-            id TEXT PRIMARY KEY,
-            player_id INTEGER,
-            season_id INTEGER,
-            team_id INTEGER,
-            jersey_number INTEGER,
-            shoots TEXT,
-            catches TEXT,
-            games_played INTEGER,
-            ice_time INTEGER,
-            ice_time_avg REAL,
-            has_games_played BOOLEAN,
-            minutes_played TEXT,
-            minutes_played_g INTEGER,
-            seconds_played INTEGER,
-            saves INTEGER,
-            shots INTEGER,
-            save_percentage REAL,
-            goals_against INTEGER,
-            empty_net_goals_against INTEGER,
-            shutouts INTEGER,
-            wins INTEGER,
-            losses INTEGER,
-            ot_losses INTEGER,
-            total_losses INTEGER,
-            shootout_games_played INTEGER,
-            shootout_losses INTEGER,
-            shootout_wins INTEGER,
-            shootout_goals_against INTEGER,
-            shootout_saves INTEGER,
-            shootout_attempts INTEGER,
-            goals INTEGER,
-            assists INTEGER,
-            points INTEGER,
-            penalty_minutes INTEGER,
-            loose_ball_recoveries INTEGER,
-            caused_turnovers INTEGER,
-            turnovers INTEGER,
-            shootout_percentage REAL,
-            ot INTEGER,
-            ties INTEGER,
-            shots_against_average REAL,
-            goals_against_average REAL,
-            latest_team_id INTEGER,
-            num_teams INTEGER,
-            FOREIGN KEY (player_id) REFERENCES players(id),
-            FOREIGN KEY (season_id) REFERENCES seasons(id),
-            FOREIGN KEY (team_id) REFERENCES teams(id)
-        );
-        """
-    },
+        # Game Stats: Teams
+        "game_stats_teams": {
+            "schema": """
+                CREATE TABLE IF NOT EXISTS game_stats_teams (
+                    id TEXT PRIMARY KEY,
+                    game_id INTEGER,
+                    team_id INTEGER,
+                    season_id INTEGER,
+                    goals INTEGER,
+                    shots_on_goal INTEGER,
+                    power_play_total INTEGER,
+                    power_play_goals INTEGER,
+                    fow INTEGER, -- faceoff wins
+                    hits INTEGER,
+                    FOREIGN KEY (game_id) REFERENCES games(id),
+                    FOREIGN KEY (team_id) REFERENCES teams(id),
+                    FOREIGN KEY (season_id) REFERENCES seasons(id)
+                );
+                """
+        },
 
-    # Game Stats: Teams
-    "game_stats_teams": {
-        "schema": """
-            CREATE TABLE IF NOT EXISTS game_stats_teams (
+        # Game Stats: Skaters
+        "game_stats_skaters": {
+            "schema": """
+                CREATE TABLE IF NOT EXISTS game_stats_skaters (
+                    id TEXT PRIMARY KEY,
+                    game_id INTEGER,
+                    player_id INTEGER,
+                    team_id INTEGER,
+                    season_id INTEGER,
+                    jersey_number INTEGER,
+                    position TEXT,
+                    rookie BOOLEAN,
+                    start BOOLEAN,
+                    status TEXT,
+                    goals INTEGER,
+                    assists INTEGER,
+                    plusminus INTEGER,
+                    pim INTEGER, -- penalty minutes
+                    faceoff_wins INTEGER,
+                    faceoff_attempts INTEGER,
+                    hits INTEGER,
+                    shots INTEGER,
+                    shots_on INTEGER,
+                    shots_blocked_by_player INTEGER,
+                    shots_blocked INTEGER,
+                    power_play_goals INTEGER,
+                    short_handed_goals INTEGER,
+                    game_winning_goal BOOLEAN,
+                    FOREIGN KEY (game_id) REFERENCES games(id),
+                    FOREIGN KEY (player_id) REFERENCES players(id),
+                    FOREIGN KEY (team_id) REFERENCES teams(id),
+                    FOREIGN KEY (season_id) REFERENCES seasons(id)
+                );
+                """
+        },
+
+        # Game Stats: Goalies
+        "game_stats_goalies": {
+            "schema": """
+                CREATE TABLE IF NOT EXISTS game_stats_goalies (
+                    id TEXT PRIMARY KEY,
+                    game_id INTEGER,
+                    player_id INTEGER,
+                    team_id INTEGER,
+                    season_id INTEGER,
+                    jersey_number INTEGER,
+                    rookie BOOLEAN,
+                    start BOOLEAN,
+                    position TEXT,
+                    status TEXT,
+                    seconds INTEGER,
+                    time TEXT,
+                    shots_against INTEGER,
+                    goals_against INTEGER,
+                    saves INTEGER,
+                    goals INTEGER,
+                    assists INTEGER,
+                    pim INTEGER,
+                    shots INTEGER,
+                    FOREIGN KEY (game_id) REFERENCES games(id),
+                    FOREIGN KEY (player_id) REFERENCES players(id),
+                    FOREIGN KEY (team_id) REFERENCES teams(id),
+                    FOREIGN KEY (season_id) REFERENCES seasons(id)
+                );
+                """
+        },
+
+        # Play-By-Play: Goalie Changes
+        "pbp_goalie_changes": {
+            "schema": """
+            CREATE TABLE IF NOT EXISTS pbp_goalie_changes (
                 id TEXT PRIMARY KEY,
                 game_id INTEGER,
-                team_id INTEGER,
                 season_id INTEGER,
-                goals INTEGER,
-                shots_on_goal INTEGER,
-                power_play_total INTEGER,
-                power_play_goals INTEGER,
-                fow INTEGER, -- faceoff wins
-                hits INTEGER,
-                FOREIGN KEY (game_id) REFERENCES games(id),
-                FOREIGN KEY (team_id) REFERENCES teams(id),
-                FOREIGN KEY (season_id) REFERENCES seasons(id)
-            );
-            """
-    },
-
-    # Game Stats: Skaters
-    "game_stats_skaters": {
-        "schema": """
-            CREATE TABLE IF NOT EXISTS game_stats_skaters (
-                id TEXT PRIMARY KEY,
-                game_id INTEGER,
-                player_id INTEGER,
-                team_id INTEGER,
-                season_id INTEGER,
-                jersey_number INTEGER,
-                position TEXT,
-                rookie BOOLEAN,
-                start BOOLEAN,
-                status TEXT,
-                goals INTEGER,
-                assists INTEGER,
-                plusminus INTEGER,
-                pim INTEGER, -- penalty minutes
-                faceoff_wins INTEGER,
-                faceoff_attempts INTEGER,
-                hits INTEGER,
-                shots INTEGER,
-                shots_on INTEGER,
-                shots_blocked_by_player INTEGER,
-                shots_blocked INTEGER,
-                power_play_goals INTEGER,
-                short_handed_goals INTEGER,
-                game_winning_goal BOOLEAN,
-                FOREIGN KEY (game_id) REFERENCES games(id),
-                FOREIGN KEY (player_id) REFERENCES players(id),
-                FOREIGN KEY (team_id) REFERENCES teams(id),
-                FOREIGN KEY (season_id) REFERENCES seasons(id)
-            );
-            """
-    },
-
-    # Game Stats: Goalies
-    "game_stats_goalies": {
-        "schema": """
-            CREATE TABLE IF NOT EXISTS game_stats_goalies (
-                id TEXT PRIMARY KEY,
-                game_id INTEGER,
-                player_id INTEGER,
-                team_id INTEGER,
-                season_id INTEGER,
-                jersey_number INTEGER,
-                rookie BOOLEAN,
-                start BOOLEAN,
-                position TEXT,
-                status TEXT,
-                seconds INTEGER,
+                period INTEGER,
                 time TEXT,
-                shots_against INTEGER,
-                goals_against INTEGER,
-                saves INTEGER,
-                goals INTEGER,
-                assists INTEGER,
-                pim INTEGER,
-                shots INTEGER,
+                seconds INTEGER,
+                team_id INTEGER,
+                opponent_team_id INTEGER,
+                goalie_in_id INTEGER,
+                goalie_out_id INTEGER,
                 FOREIGN KEY (game_id) REFERENCES games(id),
-                FOREIGN KEY (player_id) REFERENCES players(id),
+                FOREIGN KEY (season_id) REFERENCES seasons(id),
                 FOREIGN KEY (team_id) REFERENCES teams(id),
-                FOREIGN KEY (season_id) REFERENCES seasons(id)
+                FOREIGN KEY (opponent_team_id) REFERENCES teams(id),
+                FOREIGN KEY (goalie_in_id) REFERENCES players(id),
+                FOREIGN KEY (goalie_out_id) REFERENCES players(id)
             );
             """
-    },
+        },
 
-    # Play-By-Play: Goalie Changes
-    "pbp_goalie_changes": {
-        "schema": """
-        CREATE TABLE IF NOT EXISTS pbp_goalie_changes (
-            id TEXT PRIMARY KEY,
-            game_id INTEGER,
-            season_id INTEGER,
-            period INTEGER,
-            time TEXT,
-            seconds INTEGER,
-            team_id INTEGER,
-            opponent_team_id INTEGER,
-            goalie_in_id INTEGER,
-            goalie_out_id INTEGER,
-            FOREIGN KEY (game_id) REFERENCES games(id),
-            FOREIGN KEY (season_id) REFERENCES seasons(id),
-            FOREIGN KEY (team_id) REFERENCES teams(id),
-            FOREIGN KEY (opponent_team_id) REFERENCES teams(id),
-            FOREIGN KEY (goalie_in_id) REFERENCES players(id),
-            FOREIGN KEY (goalie_out_id) REFERENCES players(id)
-        );
-        """
-    },
+        # Play-By-Play: Faceoffs
+        "pbp_faceoffs": {
+            "schema": """
+            CREATE TABLE IF NOT EXISTS pbp_faceoffs (
+                id TEXT PRIMARY KEY,
+                game_id INTEGER,
+                season_id INTEGER,
+                period INTEGER,
+                time TEXT,
+                time_formatted TEXT,
+                seconds INTEGER,
+                home_player_id INTEGER,
+                visitor_player_id INTEGER,
+                home_win BOOLEAN,
+                win_team_id INTEGER,
+                opponent_team_id INTEGER,
+                x_location INTEGER,
+                y_location INTEGER,
+                location_id INTEGER,
+                FOREIGN KEY (game_id) REFERENCES games(id),
+                FOREIGN KEY (season_id) REFERENCES seasons(id),
+                FOREIGN KEY (home_player_id) REFERENCES players(id),
+                FOREIGN KEY (visitor_player_id) REFERENCES players(id),
+                FOREIGN KEY (win_team_id) REFERENCES teams(id),
+                FOREIGN KEY (opponent_team_id) REFERENCES teams(id)
+            );
+            """
+        },
 
-    # Play-By-Play: Faceoffs
-    "pbp_faceoffs": {
-        "schema": """
-        CREATE TABLE IF NOT EXISTS pbp_faceoffs (
-            id TEXT PRIMARY KEY,
-            game_id INTEGER,
-            season_id INTEGER,
-            period INTEGER,
-            time TEXT,
-            time_formatted TEXT,
-            seconds INTEGER,
-            home_player_id INTEGER,
-            visitor_player_id INTEGER,
-            home_win BOOLEAN,
-            win_team_id INTEGER,
-            opponent_team_id INTEGER,
-            x_location INTEGER,
-            y_location INTEGER,
-            location_id INTEGER,
-            FOREIGN KEY (game_id) REFERENCES games(id),
-            FOREIGN KEY (season_id) REFERENCES seasons(id),
-            FOREIGN KEY (home_player_id) REFERENCES players(id),
-            FOREIGN KEY (visitor_player_id) REFERENCES players(id),
-            FOREIGN KEY (win_team_id) REFERENCES teams(id),
-            FOREIGN KEY (opponent_team_id) REFERENCES teams(id)
-        );
-        """
-    },
+        # Play-By-Play: Hits
+        "pbp_hits": {
+            "schema": """
+            CREATE TABLE IF NOT EXISTS pbp_hits (
+                id TEXT PRIMARY KEY,
+                game_id INTEGER,
+                season_id INTEGER,
+                period INTEGER,
+                time TEXT,
+                time_formatted TEXT,
+                seconds INTEGER,
+                player_id INTEGER,
+                team_id INTEGER,
+                opponent_team_id INTEGER,
+                home BOOLEAN,
+                x_location INTEGER,
+                y_location INTEGER,
+                hit_type INTEGER,
+                FOREIGN KEY (game_id) REFERENCES games(id),
+                FOREIGN KEY (season_id) REFERENCES seasons(id),
+                FOREIGN KEY (player_id) REFERENCES players(id),
+                FOREIGN KEY (team_id) REFERENCES teams(id),
+                FOREIGN KEY (opponent_team_id) REFERENCES teams(id)
+            );
+            """
+        },
 
-    # Play-By-Play: Hits
-    "pbp_hits": {
-        "schema": """
-        CREATE TABLE IF NOT EXISTS pbp_hits (
-            id TEXT PRIMARY KEY,
-            game_id INTEGER,
-            season_id INTEGER,
-            period INTEGER,
-            time TEXT,
-            time_formatted TEXT,
-            seconds INTEGER,
-            player_id INTEGER,
-            team_id INTEGER,
-            opponent_team_id INTEGER,
-            home BOOLEAN,
-            x_location INTEGER,
-            y_location INTEGER,
-            hit_type INTEGER,
-            FOREIGN KEY (game_id) REFERENCES games(id),
-            FOREIGN KEY (season_id) REFERENCES seasons(id),
-            FOREIGN KEY (player_id) REFERENCES players(id),
-            FOREIGN KEY (team_id) REFERENCES teams(id),
-            FOREIGN KEY (opponent_team_id) REFERENCES teams(id)
-        );
-        """
-    },
+        # Play-By-Play: Shots
+        "pbp_shots": {
+            "schema": """
+            CREATE TABLE IF NOT EXISTS pbp_shots (
+                id TEXT PRIMARY KEY,
+                game_id INTEGER,
+                season_id INTEGER,
+                player_id INTEGER,
+                goalie_id INTEGER,
+                team_id INTEGER,
+                opponent_team_id INTEGER,
+                home BOOLEAN,
+                period INTEGER,
+                time TEXT,
+                time_formatted TEXT,
+                seconds INTEGER,
+                x_location INTEGER,
+                y_location INTEGER,
+                shot_type INTEGER,
+                shot_type_description TEXT,
+                quality INTEGER,
+                shot_quality_description TEXT,
+                game_goal_id TEXT,
+                FOREIGN KEY (game_id) REFERENCES games(id),
+                FOREIGN KEY (season_id) REFERENCES seasons(id),
+                FOREIGN KEY (player_id) REFERENCES players(id),
+                FOREIGN KEY (goalie_id) REFERENCES players(id),
+                FOREIGN KEY (team_id) REFERENCES teams(id),
+                FOREIGN KEY (opponent_team_id) REFERENCES teams(id)
+            );
+            """
+        },
 
-    # Play-By-Play: Shots
-    "pbp_shots": {
-        "schema": """
-        CREATE TABLE IF NOT EXISTS pbp_shots (
-            id TEXT PRIMARY KEY,
-            game_id INTEGER,
-            season_id INTEGER,
-            player_id INTEGER,
-            goalie_id INTEGER,
-            team_id INTEGER,
-            opponent_team_id INTEGER,
-            home BOOLEAN,
-            period INTEGER,
-            time TEXT,
-            time_formatted TEXT,
-            seconds INTEGER,
-            x_location INTEGER,
-            y_location INTEGER,
-            shot_type INTEGER,
-            shot_type_description TEXT,
-            quality INTEGER,
-            shot_quality_description TEXT,
-            game_goal_id TEXT,
-            FOREIGN KEY (game_id) REFERENCES games(id),
-            FOREIGN KEY (season_id) REFERENCES seasons(id),
-            FOREIGN KEY (player_id) REFERENCES players(id),
-            FOREIGN KEY (goalie_id) REFERENCES players(id),
-            FOREIGN KEY (team_id) REFERENCES teams(id),
-            FOREIGN KEY (opponent_team_id) REFERENCES teams(id)
-        );
-        """
-    },
+        # Play-By-Play: Blocked Shots
+        "pbp_blocked_shots": {
+            "schema": """
+            CREATE TABLE IF NOT EXISTS pbp_blocked_shots (
+                id TEXT PRIMARY KEY,
+                game_id INTEGER,
+                season_id INTEGER,
+                player_id INTEGER,
+                goalie_id INTEGER,
+                team_id INTEGER,
+                blocker_player_id INTEGER,
+                blocker_team_id INTEGER,
+                home BOOLEAN,
+                period INTEGER,
+                time TEXT,
+                time_formatted TEXT,
+                seconds INTEGER,
+                x_location INTEGER,
+                y_location INTEGER,
+                orientation INTEGER,
+                shot_type INTEGER,
+                shot_type_description TEXT,
+                quality INTEGER,
+                shot_quality_description TEXT,
+                FOREIGN KEY (game_id) REFERENCES games(id),
+                FOREIGN KEY (season_id) REFERENCES seasons(id),
+                FOREIGN KEY (player_id) REFERENCES players(id),
+                FOREIGN KEY (goalie_id) REFERENCES players(id), 
+                FOREIGN KEY (blocker_player_id) REFERENCES players(id),
+                FOREIGN KEY (team_id) REFERENCES teams(id),
+                FOREIGN KEY (blocker_team_id) REFERENCES teams(id)
+            );
+            """
+        },
 
-    # Play-By-Play: Blocked Shots
-    "pbp_blocked_shots": {
-        "schema": """
-        CREATE TABLE IF NOT EXISTS pbp_blocked_shots (
-            id TEXT PRIMARY KEY,
-            game_id INTEGER,
-            season_id INTEGER,
-            player_id INTEGER,
-            goalie_id INTEGER,
-            team_id INTEGER,
-            blocker_player_id INTEGER,
-            blocker_team_id INTEGER,
-            home BOOLEAN,
-            period INTEGER,
-            time TEXT,
-            time_formatted TEXT,
-            seconds INTEGER,
-            x_location INTEGER,
-            y_location INTEGER,
-            orientation INTEGER,
-            shot_type INTEGER,
-            shot_type_description TEXT,
-            quality INTEGER,
-            shot_quality_description TEXT,
-            FOREIGN KEY (game_id) REFERENCES games(id),
-            FOREIGN KEY (season_id) REFERENCES seasons(id),
-            FOREIGN KEY (player_id) REFERENCES players(id),
-            FOREIGN KEY (goalie_id) REFERENCES players(id), 
-            FOREIGN KEY (blocker_player_id) REFERENCES players(id),
-            FOREIGN KEY (team_id) REFERENCES teams(id),
-            FOREIGN KEY (blocker_team_id) REFERENCES teams(id),
-            FOREIGN KEY (opponent_team_id) REFERENCES teams(id)
-        );
-        """
-    },
+        # Play-By-Play: Goals
+        "pbp_goals": {
+            "schema": """
+            CREATE TABLE IF NOT EXISTS pbp_goals (
+                id TEXT PRIMARY KEY,
+                game_id INTEGER,
+                season_id INTEGER,
+                team_id INTEGER,
+                opponent_team_id INTEGER,
+                home BOOLEAN,
+                goal_player_id INTEGER,
+                assist1_player_id INTEGER,
+                assist2_player_id INTEGER,
+                period INTEGER,
+                time TEXT,
+                time_formatted TEXT,
+                seconds INTEGER,
+                x_location INTEGER,
+                y_location INTEGER,
+                location_set BOOLEAN,
+                power_play BOOLEAN,
+                empty_net BOOLEAN,
+                penalty_shot BOOLEAN,
+                short_handed BOOLEAN,
+                insurance_goal BOOLEAN,
+                game_winning BOOLEAN,
+                game_tieing BOOLEAN,
+                scorer_goal_num INTEGER,
+                goal_type TEXT,
+                FOREIGN KEY (game_id) REFERENCES games(id),
+                FOREIGN KEY (season_id) REFERENCES seasons(id),
+                FOREIGN KEY (team_id) REFERENCES teams(id),
+                FOREIGN KEY (opponent_team_id) REFERENCES teams(id),
+                FOREIGN KEY (goal_player_id) REFERENCES players(id),
+                FOREIGN KEY (assist1_player_id) REFERENCES players(id),
+                FOREIGN KEY (assist2_player_id) REFERENCES players(id)
+            );
+            """
+        },
 
-    # Play-By-Play: Goals
-    "pbp_goals": {
-        "schema": """
-        CREATE TABLE IF NOT EXISTS pbp_goals (
-            id TEXT PRIMARY KEY,
-            game_id INTEGER,
-            season_id INTEGER,
-            team_id INTEGER,
-            opponent_team_id INTEGER,
-            home BOOLEAN,
-            goal_player_id INTEGER,
-            assist1_player_id INTEGER,
-            assist2_player_id INTEGER,
-            period INTEGER,
-            time TEXT,
-            time_formatted TEXT,
-            seconds INTEGER,
-            x_location INTEGER,
-            y_location INTEGER,
-            location_set BOOLEAN,
-            power_play BOOLEAN,
-            empty_net BOOLEAN,
-            penalty_shot BOOLEAN,
-            short_handed BOOLEAN,
-            insurance_goal BOOLEAN,
-            game_winning BOOLEAN,
-            game_tieing BOOLEAN,
-            scorer_goal_num INTEGER,
-            goal_type TEXT,
-            FOREIGN KEY (game_id) REFERENCES games(id),
-            FOREIGN KEY (season_id) REFERENCES seasons(id),
-            FOREIGN KEY (team_id) REFERENCES teams(id),
-            FOREIGN KEY (opponent_team_id) REFERENCES teams(id),
-            FOREIGN KEY (goal_player_id) REFERENCES players(id),
-            FOREIGN KEY (assist1_player_id) REFERENCES players(id),
-            FOREIGN KEY (assist2_player_id) REFERENCES players(id)
-        );
-        """
-    },
+        # Play-By-Play: Goal Plus Players
+        "pbp_goals_plus": {
+            "schema": """
+            CREATE TABLE IF NOT EXISTS pbp_goals_plus (
+                id TEXT PRIMARY KEY,
+                goal_id TEXT,
+                game_id INTEGER,
+                season_id INTEGER,
+                team_id INTEGER,
+                player_id INTEGER,
+                jersey_number INTEGER,
+                FOREIGN KEY (goal_id) REFERENCES pbp_goals(id),
+                FOREIGN KEY (game_id) REFERENCES games(id),
+                FOREIGN KEY (season_id) REFERENCES seasons(id),
+                FOREIGN KEY (team_id) REFERENCES teams(id),
+                FOREIGN KEY (player_id) REFERENCES players(id)
+            );
+            """
+        },
 
-    # Play-By-Play: Goal Plus Players
-    "pbp_goals_plus": {
-        "schema": """
-        CREATE TABLE IF NOT EXISTS pbp_goals_plus (
-            id TEXT PRIMARY KEY,
-            goal_id TEXT,
-            game_id INTEGER,
-            season_id INTEGER,
-            team_id INTEGER,
-            player_id INTEGER,
-            jersey_number INTEGER,
-            FOREIGN KEY (goal_id) REFERENCES pbp_goals(id),
-            FOREIGN KEY (game_id) REFERENCES games(id),
-            FOREIGN KEY (season_id) REFERENCES seasons(id),
-            FOREIGN KEY (team_id) REFERENCES teams(id),
-            FOREIGN KEY (player_id) REFERENCES players(id)
-        );
-        """
-    },
+        # Play-By-Play: Goal Minus Players
+        "pbp_goals_minus": {
+            "schema": """
+            CREATE TABLE IF NOT EXISTS pbp_goals_minus (
+                id TEXT PRIMARY KEY,
+                goal_id TEXT,
+                game_id INTEGER,
+                season_id INTEGER,
+                team_id INTEGER,
+                player_id INTEGER,
+                jersey_number INTEGER,
+                FOREIGN KEY (goal_id) REFERENCES pbp_goals(id),
+                FOREIGN KEY (game_id) REFERENCES games(id),
+                FOREIGN KEY (season_id) REFERENCES seasons(id),
+                FOREIGN KEY (team_id) REFERENCES teams(id),
+                FOREIGN KEY (player_id) REFERENCES players(id)
+            );
+            """
+        },
 
-    # Play-By-Play: Goal Minus Players
-    "pbp_goals_minus": {
-        "schema": """
-        CREATE TABLE IF NOT EXISTS pbp_goals_minus (
-            id TEXT PRIMARY KEY,
-            goal_id TEXT,
-            game_id INTEGER,
-            season_id INTEGER,
-            team_id INTEGER,
-            player_id INTEGER,
-            jersey_number INTEGER,
-            FOREIGN KEY (goal_id) REFERENCES pbp_goals(id),
-            FOREIGN KEY (game_id) REFERENCES games(id),
-            FOREIGN KEY (season_id) REFERENCES seasons(id),
-            FOREIGN KEY (team_id) REFERENCES teams(id),
-            FOREIGN KEY (player_id) REFERENCES players(id)
-        );
-        """
-    },
+        # Play-By-Play: Penalties
+        "pbp_penalties": {
+            "schema": """
+            CREATE TABLE IF NOT EXISTS pbp_penalties (
+                id TEXT PRIMARY KEY,
+                game_id INTEGER,
+                season_id INTEGER,
+                player_id INTEGER,
+                player_served INTEGER,
+                team_id INTEGER,
+                opponent_team_id INTEGER,
+                home BOOLEAN,
+                period INTEGER,
+                time_off_formatted TEXT,
+                minutes REAL,
+                minutes_formatted TEXT,
+                bench BOOLEAN,
+                penalty_shot BOOLEAN,
+                pp BOOLEAN,
+                offence INTEGER,
+                penalty_class_id INTEGER,
+                penalty_class TEXT,
+                lang_penalty_description TEXT,
+                FOREIGN KEY (game_id) REFERENCES games(id),
+                FOREIGN KEY (season_id) REFERENCES seasons(id),
+                FOREIGN KEY (player_id) REFERENCES players(id),
+                FOREIGN KEY (team_id) REFERENCES teams(id),
+                FOREIGN KEY (opponent_team_id) REFERENCES teams(id)
+            );
+            """
+        },
 
-    # Play-By-Play: Penalties
-    "pbp_penalties": {
-        "schema": """
-        CREATE TABLE IF NOT EXISTS pbp_penalties (
-            id TEXT PRIMARY KEY,
-            game_id INTEGER,
-            season_id INTEGER,
-            player_id INTEGER,
-            player_served INTEGER,
-            team_id INTEGER,
-            opponent_team_id INTEGER,
-            home BOOLEAN,
-            period INTEGER,
-            time_off_formatted TEXT,
-            minutes REAL,
-            minutes_formatted TEXT,
-            bench BOOLEAN,
-            penalty_shot BOOLEAN,
-            pp BOOLEAN,
-            offence INTEGER,
-            penalty_class_id INTEGER,
-            penalty_class TEXT,
-            lang_penalty_description TEXT,
-            FOREIGN KEY (game_id) REFERENCES games(id),
-            FOREIGN KEY (season_id) REFERENCES seasons(id),
-            FOREIGN KEY (player_id) REFERENCES players(id),
-            FOREIGN KEY (team_id) REFERENCES teams(id),
-            FOREIGN KEY (opponent_team_id) REFERENCES teams(id)
-        );
-        """
-    },
-
-    # Play-By-Play: Shootouts
-    "pbp_shootouts": {
-        "schema": """
-        CREATE TABLE IF NOT EXISTS pbp_shootouts (
-            id TEXT PRIMARY KEY,
-            game_id INTEGER,
-            season_id INTEGER,
-            player_id INTEGER,
-            goalie_id INTEGER,
-            team_id INTEGER,
-            opponent_team_id INTEGER,
-            home BOOLEAN,
-            shot_order INTEGER,
-            goal BOOLEAN,
-            winning_goal BOOLEAN,
-            seconds INTEGER,
-            FOREIGN KEY (game_id) REFERENCES games(id),
-            FOREIGN KEY (season_id) REFERENCES seasons(id),
-            FOREIGN KEY (player_id) REFERENCES players(id),
-            FOREIGN KEY (goalie_id) REFERENCES players(id),
-            FOREIGN KEY (team_id) REFERENCES teams(id),
-            FOREIGN KEY (opponent_team_id) REFERENCES teams(id)
-        );
-        """
+        # Play-By-Play: Shootouts
+        "pbp_shootouts": {
+            "schema": """
+            CREATE TABLE IF NOT EXISTS pbp_shootouts (
+                id TEXT PRIMARY KEY,
+                game_id INTEGER,
+                season_id INTEGER,
+                player_id INTEGER,
+                goalie_id INTEGER,
+                team_id INTEGER,
+                opponent_team_id INTEGER,
+                home BOOLEAN,
+                shot_order INTEGER,
+                goal BOOLEAN,
+                winning_goal BOOLEAN,
+                seconds INTEGER,
+                FOREIGN KEY (game_id) REFERENCES games(id),
+                FOREIGN KEY (season_id) REFERENCES seasons(id),
+                FOREIGN KEY (player_id) REFERENCES players(id),
+                FOREIGN KEY (goalie_id) REFERENCES players(id),
+                FOREIGN KEY (team_id) REFERENCES teams(id),
+                FOREIGN KEY (opponent_team_id) REFERENCES teams(id)
+            );
+            """
+        },
     },
 
     # Indexes for Efficient Querying
@@ -766,7 +756,7 @@ DB_SCHEMA = {
             "CREATE INDEX IF NOT EXISTS idx_games_season_id ON games(season_id);",
             "CREATE INDEX IF NOT EXISTS idx_games_date ON games(date);",
             "CREATE INDEX IF NOT EXISTS idx_games_home_team ON games(home_team);",
-            "CREATE INDEX IF NOT EXISTS idx_games_visitor_team ON games(visitor_team);"
+            "CREATE INDEX IF NOT EXISTS idx_games_visitor_team ON games(visiting_team);"
         ],
 
         "playoffs": [
@@ -823,14 +813,13 @@ DB_SCHEMA = {
             "CREATE INDEX IF NOT EXISTS idx_pbp_shots_goalie ON pbp_shots(goalie_id);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_shots_team ON pbp_shots(team_id);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_shots_opponent ON pbp_shots(opponent_team_id);",
-            "CREATE INDEX IF NOT EXISTS idx_pbp_shots_period ON pbp_shots(period_id);",
+            "CREATE INDEX IF NOT EXISTS idx_pbp_shots_period ON pbp_shots(period);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_blocked_shots_game ON pbp_blocked_shots(game_id);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_blocked_shots_season ON pbp_blocked_shots(season_id);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_blocked_shots_player ON pbp_blocked_shots(player_id);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_blocked_shots_blocker ON pbp_blocked_shots(blocker_player_id);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_blocked_shots_team ON pbp_blocked_shots(team_id);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_blocked_shots_blocker_team ON pbp_blocked_shots(blocker_team_id);",
-            "CREATE INDEX IF NOT EXISTS idx_pbp_blocked_shots_opponent ON pbp_blocked_shots(opponent_team_id);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_goals_game ON pbp_goals(game_id);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_goals_season ON pbp_goals(season_id);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_goals_team ON pbp_goals(team_id);",
@@ -838,7 +827,7 @@ DB_SCHEMA = {
             "CREATE INDEX IF NOT EXISTS idx_pbp_goals_scorer ON pbp_goals(goal_player_id);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_goals_assist1 ON pbp_goals(assist1_player_id);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_goals_assist2 ON pbp_goals(assist2_player_id);",
-            "CREATE INDEX IF NOT EXISTS idx_pbp_goals_period ON pbp_goals(period_id);",
+            "CREATE INDEX IF NOT EXISTS idx_pbp_goals_period ON pbp_goals(period);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_goals_plus_goal ON pbp_goals_plus(goal_id);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_goals_plus_game ON pbp_goals_plus(game_id);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_goals_plus_season ON pbp_goals_plus(season_id);",
@@ -854,7 +843,7 @@ DB_SCHEMA = {
             "CREATE INDEX IF NOT EXISTS idx_pbp_penalties_player ON pbp_penalties(player_id);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_penalties_team ON pbp_penalties(team_id);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_penalties_opponent ON pbp_penalties(opponent_team_id);",
-            "CREATE INDEX IF NOT EXISTS idx_pbp_penalties_period ON pbp_penalties(period_id);",
+            "CREATE INDEX IF NOT EXISTS idx_pbp_penalties_period ON pbp_penalties(period);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_shootouts_game ON pbp_shootouts(game_id);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_shootouts_season ON pbp_shootouts(season_id);",
             "CREATE INDEX IF NOT EXISTS idx_pbp_shootouts_player ON pbp_shootouts(player_id);",
