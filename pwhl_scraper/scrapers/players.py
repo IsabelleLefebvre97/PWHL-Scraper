@@ -5,7 +5,7 @@ This module fetches and updates player information from all teams and seasons.
 """
 import sqlite3
 import logging
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Union
 
 from pwhl_scraper.api.client import PWHLApiClient
 from pwhl_scraper.database.db_manager import create_connection, fetch_all
@@ -257,7 +257,7 @@ def update_player(conn: sqlite3.Connection, player_roster_data: Dict[str, Any],
         return 0
 
 
-def update_players(db_path: str, player_id: Optional[int] = None) -> int | None | Any:
+def update_players(db_path: str, player_id: Optional[int] = None)-> Union[int, None, Any]:
     """
     Update player information for all players or a specific player.
 

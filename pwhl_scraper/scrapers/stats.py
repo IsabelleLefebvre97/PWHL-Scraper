@@ -6,7 +6,7 @@ This module fetches and updates statistics for teams, players, and games.
 import logging
 import sqlite3
 import time
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Union
 
 from pwhl_scraper.api.client import PWHLApiClient
 from pwhl_scraper.database.db_manager import create_connection, fetch_all
@@ -1532,7 +1532,7 @@ def update_game_stats_goalies(conn: sqlite3.Connection, game_id: int, game_stats
     return updated_count
 
 
-def update_team_stats(db_path: str, season_id: Optional[int] = None) -> int | None | Any:
+def update_team_stats(db_path: str, season_id: Optional[int] = None) -> Union[int, None, Any]:
     """
     Update team statistics for all seasons or a specific season.
 
@@ -1590,7 +1590,7 @@ def update_team_stats(db_path: str, season_id: Optional[int] = None) -> int | No
 
 
 def update_skater_stats(db_path: str, season_id: Optional[int] = None,
-                        player_id: Optional[int] = None) -> int | None | Any:
+                        player_id: Optional[int] = None) -> Union[int, None, Any]:
     """
     Update skater statistics for all players or a specific player.
 
@@ -1668,7 +1668,7 @@ def update_skater_stats(db_path: str, season_id: Optional[int] = None,
 
 
 def update_goalie_stats(db_path: str, season_id: Optional[int] = None,
-                        player_id: Optional[int] = None) -> int | None | Any:
+                        player_id: Optional[int] = None) -> Union[int, None, Any]:
     """
     Update goalie statistics for all players or a specific player.
 
@@ -1745,7 +1745,7 @@ def update_goalie_stats(db_path: str, season_id: Optional[int] = None,
     return updated_count
 
 
-def update_game_stats(db_path: str, game_id: Optional[int] = None) -> int | None | Any:
+def update_game_stats(db_path: str, game_id: Optional[int] = None) -> Union[int, None, Any]:
     """
     Update game statistics for all games or a specific game.
 

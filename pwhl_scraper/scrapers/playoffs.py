@@ -3,12 +3,12 @@ Playoff data scraper for PWHL Scraper.
 
 This module fetches and updates playoff information for all playoff seasons.
 """
-import sqlite3
 import logging
-from typing import Dict, Any, Optional, List, Tuple
+import sqlite3
+from typing import Dict, Any, Optional, List, Tuple, Union
 
 from pwhl_scraper.api.client import PWHLApiClient
-from pwhl_scraper.database.db_manager import create_connection, execute_query, fetch_one, fetch_all
+from pwhl_scraper.database.db_manager import create_connection, fetch_all
 
 logger = logging.getLogger(__name__)
 
@@ -311,7 +311,7 @@ def update_playoff_games(conn: sqlite3.Connection, season_id: int, round_id: str
     return updated_count
 
 
-def update_playoffs(db_path: str, season_id: Optional[int] = None) -> int:
+def update_playoffs(db_path: str, season_id: Optional[int] = None) -> Union[int, None, Any]:
     """
     Update playoff information for all playoff seasons or a specific season.
 

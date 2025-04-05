@@ -34,12 +34,14 @@ class PWHLApiClient:
         }
 
     def _respect_rate_limit(self):
-        """Ensure we don't exceed rate limits by adding delays between requests."""
+        if self.last_request_time == 0:
+            self.last_request_time = time.time()
+            return
+
         current_time = time.time()
         time_since_last_request = current_time - self.last_request_time
 
         if time_since_last_request < self.rate_limit:
-            # Sleep to maintain minimum time between requests
             sleep_time = self.rate_limit - time_since_last_request
             time.sleep(sleep_time)
 

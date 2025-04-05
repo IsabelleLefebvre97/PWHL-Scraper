@@ -12,8 +12,7 @@ This module fetches and updates detailed play-by-play information for each game 
 """
 import sqlite3
 import logging
-import uuid
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, Union
 from pwhl_scraper.api.client import PWHLApiClient
 from pwhl_scraper.database.db_manager import create_connection
 
@@ -1034,7 +1033,7 @@ def get_season_id_for_game(conn: sqlite3.Connection, game_id: int) -> Optional[i
 
 
 def update_play_by_play(db_path: str, game_id: Optional[int] = None, limit: Optional[int] = None,
-                        force_all: bool = False) -> int:
+                        force_all: bool = False) -> Union[int, None, Any]:
     """
     Update play-by-play data for all games without it or a specific game.
 

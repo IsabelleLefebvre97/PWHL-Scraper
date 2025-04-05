@@ -3,12 +3,12 @@ Game data scraper for PWHL Scraper.
 
 This module fetches and updates game information for all seasons.
 """
-import sqlite3
 import logging
-from typing import Dict, Any, Optional, List, Tuple
+import sqlite3
+from typing import Dict, Any, Optional, List, Tuple, Union
 
 from pwhl_scraper.api.client import PWHLApiClient
-from pwhl_scraper.database.db_manager import create_connection, execute_query, fetch_one, fetch_all
+from pwhl_scraper.database.db_manager import create_connection, fetch_all
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +224,7 @@ def fetch_game_details(client: PWHLApiClient, game_id: int) -> Optional[Dict[str
     return game_data
 
 
-def update_games(db_path: str, season_id: Optional[int] = None) -> int:
+def update_games(db_path: str, season_id: Optional[int] = None) -> Union[int, None, Any]:
     """
     Update game information for all games or games in a specific season.
 
