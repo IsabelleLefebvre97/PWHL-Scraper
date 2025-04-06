@@ -104,10 +104,7 @@ def update_game(conn: sqlite3.Connection, game_data: Dict[str, Any]) -> int:
 
     # Extract date (using GameDateISO8601 as specified)
     date = game_data.get('GameDateISO8601', '')
-    if date:
-        # Extract just the date portion if it includes time
-        date = date.split('T')[0] if 'T' in date else date
-
+    
     # Extract team IDs
     try:
         home_team = int(game_data.get('home_team', 0))
