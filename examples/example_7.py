@@ -160,7 +160,7 @@ def plot_goal_contour_on_rink(team_id=3, season_id=5):
         f"Home Goals: {home_goals}\n"
         f"Away Goals: {away_goals}"
     )
-    ax.text(0.5, 0.05, annotation_text,
+    ax.text(0.5, 0.1, annotation_text,
             transform=ax.transAxes,
             verticalalignment='bottom',
             horizontalalignment='center',
@@ -168,7 +168,7 @@ def plot_goal_contour_on_rink(team_id=3, season_id=5):
             fontsize=10)
 
     plt.tight_layout()
-    plt.savefig('example_6-goal_map.svg', format='svg')
+    plt.savefig('example_7-goal_map.svg', format='svg')
     plt.show()
 
 

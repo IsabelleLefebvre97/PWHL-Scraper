@@ -169,7 +169,169 @@ optional arguments:
 
 Here are some examples of what you can create with the data collected by PWHL Scraper:
 
-### Player Goal Scoring Visualization
+### Team Performance
+
+<details>
+<summary>Click to expand/collapse code</summary>
+
+```python
+import sqlite3
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Connect to the database
+conn = sqlite3.connect("../data/pwhl_data.db")
+
+# Define team colors
+team_colors = {
+    1: '#173F35',
+    2: '#A77BCA',
+    3: '#862633',
+    4: '#00BFB3',
+    5: '#FFB81C',
+    6: '#0067B9'
+}
+default_color = '#808080'
+
+# First get all teams to know how many we're dealing with
+teams_query = """
+SELECT id, name, code
+FROM teams
+WHERE teams.id IN (
+    SELECT DISTINCT home_team FROM games WHERE season_id = 5
+    UNION 
+    SELECT DISTINCT visiting_team FROM games WHERE season_id = 5
+)
+"""
+teams_df = pd.read_sql_query(teams_query, conn)
+
+# Get all games for the season
+games_query = """
+SELECT 
+    g.id,
+    g.date,
+    g.game_number,
+    g.home_team,
+    g.visiting_team,
+    g.home_goal_count,
+    g.visiting_goal_count,
+    g.overtime,
+    g.shootout,
+    g.game_status,
+    t1.name as home_team_name,
+    t1.code as home_team_code,
+    t2.name as away_team_name,
+    t2.code as away_team_code,
+    s.id as season_id,
+    s.name as season_name
+FROM games g
+JOIN teams t1 ON g.home_team = t1.id
+JOIN teams t2 ON g.visiting_team = t2.id
+JOIN seasons s ON g.season_id = s.id
+WHERE g.season_id = 5 AND g.status = 4
+ORDER BY g.date, g.id
+"""
+games_df = pd.read_sql_query(games_query, conn)
+season_name = games_df['season_name'].iloc[0]
+
+
+# Calculate points for each game
+def calculate_points(row):
+    # Home team points
+    if row['home_goal_count'] > row['visiting_goal_count']:
+        if not row['overtime'] and not row['shootout']:
+            home_points = 3  # Regulation win
+        else:
+            home_points = 2  # OT/SO win
+        away_points = 0 if not (row['overtime'] or row['shootout']) else 1
+    else:
+        if not row['overtime'] and not row['shootout']:
+            home_points = 0  # Regulation loss
+        else:
+            home_points = 1  # OT/SO loss
+        away_points = 3 if not (row['overtime'] or row['shootout']) else 2
+
+    return pd.Series([home_points, away_points])
+
+
+games_df[['home_points', 'away_points']] = games_df.apply(calculate_points, axis=1)
+
+# Create a points history for each team
+team_points = {}
+for _, team in teams_df.iterrows():
+    team_id = team['id']
+    team_name = team['name']
+    # Use the team_colors dictionary instead of database field
+    team_color = team_colors.get(team_id, default_color)
+
+    # Filter games for this team
+    home_games = games_df[games_df['home_team'] == team_id].copy()
+    away_games = games_df[games_df['visiting_team'] == team_id].copy()
+
+    # Create a dataframe with game numbers and points
+    home_points = pd.DataFrame({
+        'game_number': home_games['game_number'],
+        'date': home_games['date'],
+        'points': home_games['home_points']
+    })
+
+    away_points = pd.DataFrame({
+        'game_number': away_games['game_number'],
+        'date': away_games['date'],
+        'points': away_games['away_points']
+    })
+
+    # Combine home and away games
+    all_points = pd.concat([home_points, away_points])
+    all_points = all_points.sort_values('date')
+
+    # Calculate running total and points above pace
+    all_points['total_points'] = all_points['points'].cumsum()
+    all_points['games_played'] = range(len(all_points))
+    all_points['max_possible'] = (all_points['games_played'] + 1) * 3
+    all_points['pace_points'] = (all_points['games_played'] + 1) * 1.5  # Average pace (1.5 points per game)
+    all_points['points_above_pace'] = all_points['total_points'] - all_points['pace_points']
+
+    team_points[team_name] = {
+        'data': all_points,
+        'color': team_color
+    }
+
+# Plot points above pace for each team
+plt.figure(figsize=(14, 8))
+
+for team_name, team_data in team_points.items():
+    data = team_data['data']
+    color = team_data['color']
+    plt.plot(data['games_played'], data['points_above_pace'], marker='o',
+             label=team_name, color=color, linewidth=3)
+
+# Add reference line at y=0 (exactly on pace)
+plt.axhline(y=0, color='black', linestyle='--', alpha=0.5)
+
+plt.xlabel('Games Played')
+plt.ylabel('Points Above Pace')
+plt.title(f"PWHL Team Performance: Points Above Pace ({season_name})")
+plt.grid(True, alpha=0.3)
+plt.legend(loc='best')
+
+# Add x-axis gridlines at regular intervals
+max_games = max([len(team_data['data']) for team_data in team_points.values()])
+plt.xticks(range(0, max_games + 1, 2))
+
+plt.tight_layout()
+plt.savefig('example_4-points_above_pace.svg', format='svg')
+plt.show()
+
+# Close connection
+conn.close()
+```
+
+</details>
+
+![team_performance.svg](examples/example_4-points_above_pace.svg)
+
+### Top Goal Scorers
 
 <details>
 <summary>Click to expand/collapse code</summary>
@@ -181,23 +343,25 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # Connect to the database
-conn = sqlite3.connect("data/pwhl_data.db")
+conn = sqlite3.connect("../data/pwhl_data.db")
 
 # Get top scorers for the 2024-2025 regular season
 query = """
 SELECT p.first_name || ' ' || p.last_name as player_name, 
        t.name as team,
        t.id as team_id,
+       n.name as n_name,
        s.goals, s.assists, s.points, s.games_played
 FROM season_stats_skaters s
 JOIN players p ON s.player_id = p.id
 JOIN teams t ON s.team_id = t.id
-JOIN seasons on s.season_id = seasons.id
-WHERE seasons.id = 5
+JOIN seasons n on s.season_id = n.id
+WHERE n.id = 5
 ORDER BY s.goals DESC
 LIMIT 10
 """
 top_scorers = pd.read_sql_query(query, conn)
+n_name = top_scorers['n_name'].iloc[0]
 
 # Define team colors
 team_colors = {
@@ -219,7 +383,7 @@ for _, row in top_scorers.iterrows():
 plt.figure(figsize=(12, 6))
 ax = sns.barplot(x='player_name', y='goals', hue='team', data=top_scorers, palette=team_name_to_color)
 plt.xticks(rotation=45, ha='right')
-plt.title('Top 10 PWHL Goal Scorers')
+plt.title(f"Top 10 PWHL Goal Scorers ({n_name})")
 plt.xlabel('')  # No x-axis label
 plt.ylabel('Goals')  # Set y-axis label
 
@@ -237,76 +401,7 @@ conn.close()
 
 </details>
 
-![top_scorers.svg](/examples/example_1-top_scorers.svg)
-
-### Team Performance Analysis
-
-<details>
-<summary>Click to expand/collapse code</summary>
-
-```python
-import sqlite3
-import pandas as pd
-import matplotlib.pyplot as plt
-
-# Connect to the database
-conn = sqlite3.connect("data/pwhl_data.db")
-
-# Get team stats
-query = """
-SELECT t.id as team_id,
-       t.name as team_name, 
-       COUNT(g.id) as games_played,
-       SUM(CASE WHEN g.home_goal_count > g.visiting_goal_count AND g.home_team = t.id THEN 1
-                WHEN g.visiting_goal_count > g.home_goal_count AND g.visiting_team = t.id THEN 1 ELSE 0 END) as wins,
-       SUM(CASE WHEN g.home_goal_count < g.visiting_goal_count AND g.home_team = t.id THEN 1
-                WHEN g.visiting_goal_count < g.home_goal_count AND g.visiting_team = t.id THEN 1 ELSE 0 END) as losses,
-       SUM(CASE WHEN g.home_goal_count = g.visiting_goal_count THEN 1 ELSE 0 END) as ties,
-       SUM(CASE WHEN g.home_team = t.id THEN g.home_goal_count ELSE g.visiting_goal_count END) as goals_for,
-       SUM(CASE WHEN g.home_team = t.id THEN g.visiting_goal_count ELSE g.home_goal_count END) as goals_against
-FROM games g
-JOIN teams t ON g.home_team = t.id OR g.visiting_team = t.id
-JOIN seasons s ON g.season_id = s.id
-WHERE s.id = 5 AND g.status = '4'
-GROUP BY t.id, t.name
-ORDER BY wins DESC
-"""
-team_stats = pd.read_sql_query(query, conn)
-
-# Calculate win percentage
-team_stats['win_pct'] = team_stats['wins'] / team_stats['games_played']
-
-# Define team colors
-team_colors = {
-    1: '#173F35',
-    2: '#A77BCA',
-    3: '#862633',
-    4: '#00BFB3',
-    5: '#FFB81C',
-    6: '#0067B9'
-}
-default_color = '#808080'
-
-# Assign colors to each team based on team_id
-bar_colors = [team_colors.get(team_id, default_color) for team_id in team_stats['team_id']]
-
-# Create a visualization
-plt.figure(figsize=(10, 6))
-plt.bar(team_stats['team_name'], team_stats['win_pct'], color=bar_colors)
-plt.ylim(0, 1)
-plt.ylabel('Win Percentage')
-plt.title('PWHL Team Performance')
-plt.tight_layout()
-plt.savefig('example_2-team_performance.svg', format='svg')
-plt.show()
-
-# Close connection
-conn.close()
-```
-
-</details>
-
-![team_performance.svg](/examples/example_2-team_performance.svg)
+![top_scorers.svg](examples/example_1-top_scorers.svg)
 
 ### Player Shot Analysis
 
@@ -319,24 +414,26 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Connect to the database
-conn = sqlite3.connect("data/pwhl_data.db")
+conn = sqlite3.connect("../data/pwhl_data.db")
 
 # Get shot data for top players including their team information
 query = """
 SELECT p.first_name || ' ' || p.last_name as player_name,
        t.id as team_id,
        t.name as team_name,
+       n.name as n_name,
        s.shots, s.goals, s.games_played,
        CAST(s.goals AS FLOAT) / NULLIF(s.shots, 0) * 100 as shooting_pct
 FROM season_stats_skaters s
 JOIN players p ON s.player_id = p.id
 JOIN teams t ON s.team_id = t.id
-JOIN seasons on s.season_id = seasons.id
-WHERE seasons.id = 5 AND s.shots >= 50
+JOIN seasons n on s.season_id = n.id
+WHERE n.id = 5 AND s.shots >= 50
 ORDER BY shooting_pct DESC
 LIMIT 20
 """
 shooting_stats = pd.read_sql_query(query, conn)
+n_name = shooting_stats['n_name'].iloc[0]
 
 # Define team colors
 team_colors = {
@@ -378,7 +475,7 @@ plt.legend(handles, labels, title='Teams', loc='best')
 
 plt.xlabel('Total Shots')
 plt.ylabel('Goals')
-plt.title('PWHL Player Shooting Efficiency')
+plt.title(f"PWHL Player Shooting Efficiency ({n_name})")
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
 plt.savefig('example_3-shooting_efficiency.svg', format='svg')
@@ -390,7 +487,7 @@ conn.close()
 
 </details>
 
-![shooting_efficiency.svg](/examples/example_3-shooting_efficiency.svg)
+![shooting_efficiency.svg](examples/example_3-shooting_efficiency.svg)
 
 ### Timing of Goals
 
@@ -406,7 +503,7 @@ from matplotlib.gridspec import GridSpec
 import numpy as np
 
 # Connect to the database
-conn = sqlite3.connect("data/pwhl_data.db")
+conn = sqlite3.connect("../data/pwhl_data.db")
 
 # Update the query to include the season name
 query = """
@@ -520,7 +617,7 @@ for i, period in enumerate([1, 2, 3, 4]):
 fig.text(0.5, 0.04, 'Time (MM:SS)', ha='center', fontsize=12)
 
 # Add a main title with the season name
-plt.suptitle(f"Timing of Goals by Period in the {season_name}", fontsize=16, y=0.98)
+plt.suptitle(f"Timing of Goals by Period ({season_name})", fontsize=16, y=0.98)
 plt.tight_layout(rect=[0, 0.05, 1, 0.95])
 plt.savefig('example_5-goal_timing.svg', format='svg')
 plt.show()
@@ -530,12 +627,14 @@ conn.close()
 
 </details>
 
-![goal_timing.svg](/examples/example_5-goal_timing.svg)
+![goal_timing.svg](examples/example_5-goal_timing.svg)
 
-### Timing of Goals
+### Goal Heatmap
 
 <details>
 <summary>Click to expand/collapse code</summary>
+
+[See full Python code](examples/example_6.py)
 
 ```python
 import sqlite3
@@ -700,7 +799,7 @@ def plot_goal_contour_on_rink(team_id=3, season_id=5):
         f"Home Goals: {home_goals}\n"
         f"Away Goals: {away_goals}"
     )
-    ax.text(0.5, 0.05, annotation_text,
+    ax.text(0.5, 0.1, annotation_text,
             transform=ax.transAxes,
             verticalalignment='bottom',
             horizontalalignment='center',
@@ -708,7 +807,7 @@ def plot_goal_contour_on_rink(team_id=3, season_id=5):
             fontsize=10)
 
     plt.tight_layout()
-    plt.savefig('example_6-goal_map.svg', format='svg')
+    plt.savefig('example_7-goal_map.svg', format='svg')
     plt.show()
 
 
@@ -719,7 +818,7 @@ if __name__ == "__main__":
 
 </details>
 
-![goal_map.svg](/examples/example_7-goal_map.svg)
+![goal_map.svg](examples/example_7-goal_map.svg)
 
 Each example demonstrates a different aspect of data analysis you can perform with the scraped PWHL data. You can create
 visualizations to track player performance, team statistics, scoring trends, and much more.

@@ -10,17 +10,19 @@ query = """
 SELECT p.first_name || ' ' || p.last_name as player_name,
        t.id as team_id,
        t.name as team_name,
+       n.name as n_name,
        s.shots, s.goals, s.games_played,
        CAST(s.goals AS FLOAT) / NULLIF(s.shots, 0) * 100 as shooting_pct
 FROM season_stats_skaters s
 JOIN players p ON s.player_id = p.id
 JOIN teams t ON s.team_id = t.id
-JOIN seasons on s.season_id = seasons.id
-WHERE seasons.id = 5 AND s.shots >= 50
+JOIN seasons n on s.season_id = n.id
+WHERE n.id = 5 AND s.shots >= 50
 ORDER BY shooting_pct DESC
 LIMIT 20
 """
 shooting_stats = pd.read_sql_query(query, conn)
+n_name = shooting_stats['n_name'].iloc[0]
 
 # Define team colors
 team_colors = {
@@ -62,7 +64,7 @@ plt.legend(handles, labels, title='Teams', loc='best')
 
 plt.xlabel('Total Shots')
 plt.ylabel('Goals')
-plt.title('PWHL Player Shooting Efficiency')
+plt.title(f"PWHL Player Shooting Efficiency ({n_name})")
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
 plt.savefig('example_3-shooting_efficiency.svg', format='svg')

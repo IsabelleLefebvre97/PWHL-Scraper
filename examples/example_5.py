@@ -120,7 +120,7 @@ for i, period in enumerate([1, 2, 3, 4]):
 fig.text(0.5, 0.04, 'Time (MM:SS)', ha='center', fontsize=12)
 
 # Add a main title with the season name
-plt.suptitle(f"Timing of Goals by Period in the {season_name}", fontsize=16, y=0.98)
+plt.suptitle(f"Timing of Goals by Period ({season_name})", fontsize=16, y=0.98)
 plt.tight_layout(rect=[0, 0.05, 1, 0.95])
 plt.savefig('example_5-goal_timing.svg', format='svg')
 plt.show()

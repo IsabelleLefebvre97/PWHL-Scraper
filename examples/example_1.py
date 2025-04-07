@@ -11,16 +11,18 @@ query = """
 SELECT p.first_name || ' ' || p.last_name as player_name, 
        t.name as team,
        t.id as team_id,
+       n.name as n_name,
        s.goals, s.assists, s.points, s.games_played
 FROM season_stats_skaters s
 JOIN players p ON s.player_id = p.id
 JOIN teams t ON s.team_id = t.id
-JOIN seasons on s.season_id = seasons.id
-WHERE seasons.id = 5
+JOIN seasons n on s.season_id = n.id
+WHERE n.id = 5
 ORDER BY s.goals DESC
 LIMIT 10
 """
 top_scorers = pd.read_sql_query(query, conn)
+n_name = top_scorers['n_name'].iloc[0]
 
 # Define team colors
 team_colors = {
@@ -42,7 +44,7 @@ for _, row in top_scorers.iterrows():
 plt.figure(figsize=(12, 6))
 ax = sns.barplot(x='player_name', y='goals', hue='team', data=top_scorers, palette=team_name_to_color)
 plt.xticks(rotation=45, ha='right')
-plt.title('Top 10 PWHL Goal Scorers')
+plt.title(f"Top 10 PWHL Goal Scorers ({n_name})")
 plt.xlabel('')  # No x-axis label
 plt.ylabel('Goals')  # Set y-axis label
 
