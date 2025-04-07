@@ -3,8 +3,8 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "PWHL-Scraper"
-dynamic = ["version"]
+name = "pwhl-scraper"
+version = "0.1.0"  # Match this with __version__ in __init__.py
 description = "Data scraper and API for PWHL (Professional Women's Hockey League) statistics"
 readme = "README.md"
 authors = [
@@ -17,14 +17,26 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.6",
     "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-requires-python = ">=3.6"
-dependencies = [] # These will be automatically read from requirements.txt
+requires-python = ">=3.7"
+dependencies = [
+    "requests>=2.25.0",
+    "pandas>=1.2.0",
+    "sqlalchemy>=1.4.0",
+    "python-dotenv>=0.15.0",
+    "click>=8.0.0",
+    "tqdm>=4.60.0",
+    "numpy>=1.20.0",
+    "matplotlib>=3.4.0",
+    "seaborn>=0.11.0",
+    "tabulate>=0.8.9",
+    "scipy>=1.8.0"
+]
 
 [project.urls]
 "Homepage" = "https://github.com/IsabelleLefebvre97/pwhl-scraper"
@@ -37,6 +49,3 @@ pwhl-scraper = "pwhl_scraper.cli:main"
 [tool.setuptools]
 packages = ["pwhl_scraper"]
 include-package-data = true
-
-[tool.setuptools.dynamic]
-version = { attr = "pwhl_scraper.__version__" }
