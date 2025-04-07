@@ -558,14 +558,14 @@ DB_SCHEMA = {
                 shot_type_description TEXT,
                 quality INTEGER,
                 shot_quality_description TEXT,
-                game_goal_id TEXT,
+                game_goal_id INTEGER,
                 FOREIGN KEY (game_id) REFERENCES games(id),
                 FOREIGN KEY (season_id) REFERENCES seasons(id),
                 FOREIGN KEY (player_id) REFERENCES players(id),
                 FOREIGN KEY (goalie_id) REFERENCES players(id),
                 FOREIGN KEY (team_id) REFERENCES teams(id),
                 FOREIGN KEY (opponent_team_id) REFERENCES teams(id),
-                FOREIGN KEY (game_goal_id) REFERENCES pbp_goals(id)
+                FOREIGN KEY (game_goal_id) REFERENCES pbp_goals(event_id)
             );
             """
         },
@@ -652,13 +652,13 @@ DB_SCHEMA = {
             "schema": """
             CREATE TABLE IF NOT EXISTS pbp_goals_plus (
                 id TEXT PRIMARY KEY,
-                goal_id TEXT,
+                goal_id INTEGER,
                 game_id INTEGER,
                 season_id INTEGER,
                 team_id INTEGER,
                 player_id INTEGER,
                 jersey_number INTEGER,
-                FOREIGN KEY (goal_id) REFERENCES pbp_goals(event_id),
+                FOREIGN KEY (goal_id) REFERENCES pbp_goals(id),
                 FOREIGN KEY (game_id) REFERENCES games(id),
                 FOREIGN KEY (season_id) REFERENCES seasons(id),
                 FOREIGN KEY (team_id) REFERENCES teams(id),
@@ -672,13 +672,13 @@ DB_SCHEMA = {
             "schema": """
             CREATE TABLE IF NOT EXISTS pbp_goals_minus (
                 id TEXT PRIMARY KEY,
-                goal_id TEXT,
+                goal_id INTEGER,
                 game_id INTEGER,
                 season_id INTEGER,
                 team_id INTEGER,
                 player_id INTEGER,
                 jersey_number INTEGER,
-                FOREIGN KEY (goal_id) REFERENCES pbp_goals(event_id),
+                FOREIGN KEY (goal_id) REFERENCES pbp_goals(id),
                 FOREIGN KEY (game_id) REFERENCES games(id),
                 FOREIGN KEY (season_id) REFERENCES seasons(id),
                 FOREIGN KEY (team_id) REFERENCES teams(id),
@@ -714,6 +714,7 @@ DB_SCHEMA = {
                 FOREIGN KEY (game_id) REFERENCES games(id),
                 FOREIGN KEY (season_id) REFERENCES seasons(id),
                 FOREIGN KEY (player_id) REFERENCES players(id),
+                FOREIGN KEY (player_served) REFERENCES players(id),
                 FOREIGN KEY (team_id) REFERENCES teams(id),
                 FOREIGN KEY (opponent_team_id) REFERENCES teams(id)
             );

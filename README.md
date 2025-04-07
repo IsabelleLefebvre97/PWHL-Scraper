@@ -171,6 +171,9 @@ Here are some examples of what you can create with the data collected by PWHL Sc
 
 ### Player Goal Scoring Visualization
 
+<details>
+<summary>Click to expand/collapse code</summary>
+
 ```python
 import sqlite3
 import pandas as pd
@@ -232,9 +235,14 @@ plt.show()
 conn.close()
 ```
 
+</details>
+
 ![top_scorers.svg](/examples/example_1-top_scorers.svg)
 
 ### Team Performance Analysis
+
+<details>
+<summary>Click to expand/collapse code</summary>
 
 ```python
 import sqlite3
@@ -296,9 +304,14 @@ plt.show()
 conn.close()
 ```
 
+</details>
+
 ![team_performance.svg](/examples/example_2-team_performance.svg)
 
 ### Player Shot Analysis
+
+<details>
+<summary>Click to expand/collapse code</summary>
 
 ```python
 import sqlite3
@@ -375,55 +388,338 @@ plt.show()
 conn.close()
 ```
 
+</details>
+
 ![shooting_efficiency.svg](/examples/example_3-shooting_efficiency.svg)
 
-### Game Analysis Over Time
+### Timing of Goals
+
+<details>
+<summary>Click to expand/collapse code</summary>
 
 ```python
 import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
+import seaborn as sns
+from matplotlib.gridspec import GridSpec
+import numpy as np
 
 # Connect to the database
 conn = sqlite3.connect("data/pwhl_data.db")
 
-# Get game data over time
+# Update the query to include the season name
 query = """
-SELECT g.date,
-       g.home_goal_count + g.visiting_goal_count as total_goals,
-       t1.name as home_team, 
-       t2.name as away_team
-FROM games g
-JOIN teams t1 ON g.home_team = t1.id
-JOIN teams t2 ON g.visiting_team = t2.id
-JOIN seasons s ON g.season_id = s.id
-WHERE s.id = 5 AND g.status = '4'
-ORDER BY g.date
+SELECT 
+    g.period,
+    g.time,
+    g.time_formatted,
+    g.seconds,
+    g.goal_player_id,
+    g.team_id,
+    g.opponent_team_id,
+    g.game_id,
+    gm.date,
+    s.name as season_name
+FROM pbp_goals g
+JOIN games gm ON g.game_id = gm.id
+JOIN seasons s ON gm.season_id = s.id
+WHERE g.season_id = 5
+  AND gm.status = '4'
+ORDER BY g.period, g.seconds
 """
-game_data = pd.read_sql_query(query, conn)
 
-# Convert ISO date-time strings to datetime objects
-game_data['date'] = pd.to_datetime(game_data['date'], format='ISO8601')
+goals_data = pd.read_sql_query(query, conn)
 
-# Plot goals over the season
-plt.figure(figsize=(14, 7))
-plt.plot(game_data['date'], game_data['total_goals'], marker='o')
-plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=14))
-plt.gcf().autofmt_xdate()
-plt.ylabel('Total Goals per Game')
-plt.title('PWHL Goal Scoring Trend Over Season')
-plt.grid(True, alpha=0.3)
-plt.tight_layout()
-plt.savefig('example_4-scoring_trend.svg', format='svg')
+# Extract the season name from the data (all rows will have the same season name)
+season_name = goals_data['season_name'].iloc[0]
+
+# Set a modern style (without grid lines)
+sns.set_style("white")
+
+# Create a figure with four subplots side-by-side
+fig = plt.figure(figsize=(16, 4))
+gs = GridSpec(1, 4, width_ratios=[4, 4, 4, 1])
+
+period_names = {
+    1: "Period 1",
+    2: "Period 2",
+    3: "Period 3",
+    4: "Overtime"
+}
+
+# Define a color palette
+colors = sns.color_palette("viridis", 4)
+
+# Process data for each period and plot in its column
+axes = []
+for i, period in enumerate([1, 2, 3, 4]):
+    ax = plt.subplot(gs[i])
+    axes.append(ax)
+
+    # Style the plot
+    ax.grid(False)
+    ax.yaxis.set_visible(False)
+
+    # Filter data for this period
+    period_data = goals_data[goals_data['period'] == period]
+
+    # Set appropriate x-axis limit for the period
+    if period < 4:
+        max_time = 1200  # 20 minutes in seconds
+        # Set ticks at 5-minute intervals (300 seconds)
+        ax.set_xticks(np.arange(0, 1201, 300))
+    else:
+        max_time = 300  # 5 minutes in seconds
+        # For overtime, set ticks at 0 and 5 minutes
+        ax.set_xticks([0, 300])
+
+    if len(period_data) == 0:
+        ax.text(0.5, 0.5, f"No data for {period_names[period]}",
+                horizontalalignment='center', verticalalignment='center',
+                transform=ax.transAxes, fontsize=12)
+        ax.set_xlim(0, max_time)
+    else:
+        # Plot the KDE if enough data points exist
+        if len(period_data) >= 3:
+            sns.kdeplot(
+                data=period_data,
+                x='seconds',
+                fill=True,
+                alpha=0.7,
+                color=colors[i],
+                bw_adjust=0.8,
+                ax=ax
+            )
+
+        # Always show the data points with a rug plot
+        sns.rugplot(
+            data=period_data,
+            x='seconds',
+            color=colors[i],
+            height=0.1,
+            ax=ax
+        )
+        ax.set_xlim(0, max_time)
+
+    # Set the title for each subplot
+    ax.set_title(f"{period_names[period]}\n(n={len(period_data)})", fontsize=12)
+
+    # Format x-axis ticks to MM:SS
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(
+        lambda x, pos: f"{int(x // 60):02d}:{int(x % 60):02d}"
+    ))
+
+    # Remove top and right spines for a cleaner look
+    sns.despine(ax=ax)
+
+    # Remove x-axis title by setting it to empty string
+    ax.set_xlabel('')
+
+# Group the subplots by sharing a common x-axis label
+fig.text(0.5, 0.04, 'Time (MM:SS)', ha='center', fontsize=12)
+
+# Add a main title with the season name
+plt.suptitle(f"Timing of Goals by Period in the {season_name}", fontsize=16, y=0.98)
+plt.tight_layout(rect=[0, 0.05, 1, 0.95])
+plt.savefig('example_5-goal_timing.svg', format='svg')
 plt.show()
 
-# Close connection
 conn.close()
 ```
 
-![scoring_trend.svg](/examples/example_4-scoring_trend.svg)
+</details>
+
+![goal_timing.svg](/examples/example_5-goal_timing.svg)
+
+### Timing of Goals
+
+<details>
+<summary>Click to expand/collapse code</summary>
+
+```python
+import sqlite3
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import gaussian_kde
+from scipy.ndimage import gaussian_filter
+import sys
+
+# Add the examples directory to the Python path so we can import the rink module
+sys.path.append('../examples')
+
+# Import the rink drawing function from the existing file
+from rink_half import draw_rink
+
+
+def get_goal_locations(team_id=3, season_id=5):
+    """
+    Fetch goal locations from the database
+    """
+    # Connect to the database
+    conn = sqlite3.connect("../data/pwhl_data.db")
+    cursor = conn.cursor()
+
+    # Query to get goal locations for the specified team and season with team and season names
+    query = """
+    SELECT g.x_location, g.y_location, g.home, 
+           t.code as team_code, s.name as season_name
+    FROM pbp_goals g
+    JOIN teams t ON g.team_id = t.id
+    JOIN seasons s ON g.season_id = s.id
+    WHERE g.team_id = ? AND g.season_id = ?
+    """
+    cursor.execute(query, (team_id, season_id))
+
+    # Fetch all results
+    goal_locations = cursor.fetchall()
+    conn.close()
+
+    if not goal_locations:
+        print(f"No goal data found for team {team_id} in season {season_id}")
+        return None
+
+    # Get team_name and season_name from the first row
+    team_name = goal_locations[0][3] if goal_locations else "Unknown Team"
+    season_name = goal_locations[0][4] if goal_locations else "Unknown Season"
+
+    print(f"Found {len(goal_locations)} goals for {team_name} in {season_name}")
+    return goal_locations, team_name, season_name
+
+
+def plot_goal_contour_on_rink(team_id=3, season_id=5):
+    """
+    Create a contour plot of goals overlaid on a hockey rink
+
+    Args:
+        team_id (int): The ID of the team to analyze
+        season_id (int): The ID of the season to analyze
+    """
+    # Get goal locations and team/season names
+    result = get_goal_locations(team_id, season_id)
+
+    if not result:
+        return
+
+    goal_locations, team_code, season_name = result
+
+    # Create figure with appropriate size
+    fig, ax = plt.subplots(figsize=(5, 6), dpi=300)
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    # Draw the rink using the imported function
+    draw_rink(ax)
+
+    # Extract x, y values and home status from goal locations
+    x_locations_raw = []
+    y_locations_raw = []
+    home_status = []
+
+    for loc in goal_locations:
+        x_locations_raw.append(loc[0])
+        y_locations_raw.append(loc[1])
+        home_status.append(loc[2])
+
+    x_locations_raw = np.array(x_locations_raw)
+    y_locations_raw = np.array(y_locations_raw)
+    home_status = np.array(home_status)
+
+    # Print original coordinate ranges
+    print(f"Original X range: {min(x_locations_raw)} to {max(x_locations_raw)}")
+    print(f"Original Y range: {min(y_locations_raw)} to {max(y_locations_raw)}")
+
+    # Map database coordinates to rink coordinates
+    x_locations = x_locations_raw / 600 * 2400
+    y_locations = y_locations_raw / 300 * 1020
+
+    # Flip x-coordinates for away games (when home = 0)
+    for i in range(len(home_status)):
+        if home_status[i] == 0:
+            # Flip x-coordinate across the center line (X = 1200)
+            x_locations[i] = 2400 - x_locations[i]
+            y_locations[i] = 1020 - y_locations[i]
+
+    x_transformed = (y_locations - 1020 / 2) + (1020 / 2)
+    y_transformed = (-(x_locations - 2400 / 2))
+    x_locations = x_transformed
+    y_locations = y_transformed
+
+    # Print mapped coordinate ranges
+    print(f"Mapped X range: {min(x_locations)} to {max(x_locations)}")
+    print(f"Mapped Y range: {min(y_locations)} to {max(y_locations)}")
+
+    # Add scatter points for each goal
+    goal_scatter = ax.scatter(x_locations, y_locations, alpha=0.7, s=30, c='black',
+                              edgecolor='white', linewidth=0.5, zorder=10)
+
+    # Increase threshold for contour overlay - require at least 10 data points
+    if len(x_locations) >= 10 and len(np.unique(np.vstack([x_locations, y_locations]).T, axis=0)) >= 5:
+        # Create a meshgrid for contour plotting
+        padding = 0  # Add some padding around the data for the grid
+        x_grid = np.linspace(0, 1020, 100)  # Cover the entire rink width
+        y_grid = np.linspace(0, 2400 / 2, 100)  # Cover the entire rink height
+        X, Y = np.meshgrid(x_grid, y_grid)
+
+        # Calculate the kernel density estimate
+        positions = np.vstack([X.ravel(), Y.ravel()])
+        values = np.vstack([x_locations, y_locations])
+
+        # Use gaussian_kde for the density estimate with adjusted bandwidth
+        kernel = gaussian_kde(values, bw_method='scott')
+        Z = np.reshape(kernel(positions), X.shape)
+        Z_smoothed = gaussian_filter(Z, sigma=2)
+
+        # Plot the contour with viridis colormap and transparency
+        # Define a minimum density threshold (adjust as needed)
+        threshold = 0.000001
+
+        # Mask density values below the threshold
+        Z_masked = np.ma.masked_less(Z, threshold)
+
+        # Define contour levels starting from the threshold
+        levels = np.linspace(threshold, np.max(Z_masked), 15)
+
+        # Plot the contour using the masked array so low-density areas remain transparent
+        contour = ax.contourf(X, Y, Z_smoothed, levels=levels, cmap='viridis', alpha=0.7)
+
+    else:
+        print("Not enough points for contour plot - displaying scatter plot only")
+
+    # Add title and annotation
+    title = f"{team_code} Goals ({season_name})"
+    plt.title(title, fontsize=14)
+
+    # Count home and away goals
+    home_goals = sum(home_status)
+    away_goals = len(home_status) - home_goals
+
+    # Add annotation with data summary
+    annotation_text = (
+        f"Total Goals: {len(goal_locations)}\n"
+        f"Home Goals: {home_goals}\n"
+        f"Away Goals: {away_goals}"
+    )
+    ax.text(0.5, 0.05, annotation_text,
+            transform=ax.transAxes,
+            verticalalignment='bottom',
+            horizontalalignment='center',
+            bbox=dict(boxstyle='round', facecolor='white', alpha=0.9),
+            fontsize=10)
+
+    plt.tight_layout()
+    plt.savefig('example_6-goal_map.svg', format='svg')
+    plt.show()
+
+
+if __name__ == "__main__":
+    # Call the function with default values (team_id=3, season_id=5)
+    plot_goal_contour_on_rink(team_id=3, season_id=5)
+```
+
+</details>
+
+![goal_map.svg](/examples/example_7-goal_map.svg)
 
 Each example demonstrates a different aspect of data analysis you can perform with the scraped PWHL data. You can create
 visualizations to track player performance, team statistics, scoring trends, and much more.

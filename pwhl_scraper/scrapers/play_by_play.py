@@ -22,18 +22,15 @@ logger = logging.getLogger(__name__)
 def process_game_play_by_play(conn: sqlite3.Connection, game_id: int, season_id: int) -> int:
     """
     Fetch and process play-by-play data for a specific game.
-
     Args:
         conn: Database connection
         game_id: Game ID to process
         season_id: Season ID for the game
-
     Returns:
         Number of events processed
     """
     # Create a custom client for play-by-play data
     client = PWHLApiClient()
-
     # Direct call to fetch play-by-play data with correct parameters
     params = {
         "feed": "gc",
@@ -43,19 +40,15 @@ def process_game_play_by_play(conn: sqlite3.Connection, game_id: int, season_id:
         "tab": "pxpverbose",
         "fmt": "json"
     }
-
     logger.info(f"Fetching play-by-play data for game {game_id}")
     pbp_data = client.fetch_data("index.php", params)
-
     if not pbp_data:
         logger.warning(f"No data returned for game {game_id}")
         return 0
-
     if 'GC' not in pbp_data or 'Pxpverbose' not in pbp_data['GC']:
         logger.warning(
             f"No play-by-play data found for game {game_id}, response: {pbp_data.keys() if pbp_data else None}")
         return 0
-
     # Get team information for the game
     home_team, visiting_team = get_game_teams(conn, game_id)
     if not home_team or not visiting_team:
@@ -66,42 +59,45 @@ def process_game_play_by_play(conn: sqlite3.Connection, game_id: int, season_id:
     logger.info(f"Found {len(events)} events for game {game_id}")
     total_processed = 0
 
+    # Process events with potential dependencies first
+    # First, process all goal events to ensure they exist in the database
+    goal_events = [event for event in events if event.get('event') == 'goal']
+    for event in goal_events:
+        try:
+            if process_goal(conn, event, game_id, season_id, home_team, visiting_team):
+                total_processed += 1
+        except Exception as e:
+            logger.error(f"Error processing goal event in game {game_id}: {e}")
+
+    # Now process all other events
     for event in events:
         event_type = event.get('event')
-
         try:
+            # Skip goals since we already processed them
+            if event_type == 'goal':
+                continue
+
             if event_type == 'goalie_change':
                 if process_goalie_change(conn, event, game_id, season_id, home_team, visiting_team):
                     total_processed += 1
-
             elif event_type == 'faceoff':
                 if process_faceoff(conn, event, game_id, season_id, home_team, visiting_team):
                     total_processed += 1
-
             elif event_type == 'hit':
                 if process_hit(conn, event, game_id, season_id, home_team, visiting_team):
                     total_processed += 1
-
             elif event_type == 'shot':
                 if process_shot(conn, event, game_id, season_id, home_team, visiting_team):
                     total_processed += 1
-
             elif event_type == 'blocked_shot':
-                if process_blocked_shot(conn, event, game_id, season_id, home_team, visiting_team):
+                if process_blocked_shot(conn, event, game_id, season_id):
                     total_processed += 1
-
-            elif event_type == 'goal':
-                if process_goal(conn, event, game_id, season_id, home_team, visiting_team):
-                    total_processed += 1
-
             elif event_type == 'penalty':
                 if process_penalty(conn, event, game_id, season_id, home_team, visiting_team):
                     total_processed += 1
-
             elif event_type == 'shootout':
                 if process_shootout(conn, event, game_id, season_id, home_team, visiting_team):
                     total_processed += 1
-
         except Exception as e:
             logger.error(f"Error processing {event_type} event in game {game_id}: {e}")
             # Continue processing other events
@@ -154,14 +150,14 @@ def process_goalie_change(conn: sqlite3.Connection, event: Dict[str, Any],
     cursor = conn.cursor()
 
     # Generate a unique ID for this event
-    goalie_change_id = f"{game_id}_goalie_{event.get('period_id', '')}_" \
-                       f"{event.get('s', '')}_{event.get('team_code', '')}"
+    goalie_change_id = f"{game_id}_goalie_{event.get('period_id', None)}_" \
+                       f"{event.get('s', None)}_{event.get('team_code', None)}"
 
     # Extract data from the event
-    period = int(event.get('period_id', 0))
-    time = event.get('time', '')
-    seconds = int(event.get('s', 0))
-    team_id = int(event.get('team_id', 0))
+    period = (event.get('period_id', None))
+    time = event.get('time', None)
+    seconds = (event.get('s', None))
+    team_id = (event.get('team_id', None))
     opponent_team_id = visiting_team if team_id == home_team else home_team
 
     # Get goalie IDs, handle possible None values
@@ -232,27 +228,27 @@ def process_faceoff(conn: sqlite3.Connection, event: Dict[str, Any],
     cursor = conn.cursor()
 
     # Use the event ID from the data or generate a unique ID
-    faceoff_id = f"{game_id}_faceoff_{event.get('period', '')}_{event.get('s', '')}"
+    faceoff_id = f"{game_id}_faceoff_{event.get('period', None)}_{event.get('s', None)}_{event.get('home_player_id', None)}_{event.get('visitor_player_id', None)}"
 
     # Extract data from the event
-    period = int(event.get('period', 0))
-    time = event.get('time', '')
-    time_formatted = event.get('time_formatted', '')
-    seconds = int(event.get('s', 0))
+    period = (event.get('period', None))
+    time = event.get('time', None)
+    time_formatted = event.get('time_formatted', None)
+    seconds = (event.get('s', None))
 
-    home_player_id = int(event.get('home_player_id', 0))
-    visitor_player_id = int(event.get('visitor_player_id', 0))
+    home_player_id = (event.get('home_player_id', None))
+    visitor_player_id = (event.get('visitor_player_id', None))
 
     home_win = event.get('home_win') == '1'
 
     # Determine the winning team
-    win_team_id = int(event.get('win_team_id', 0))
+    win_team_id = (event.get('win_team_id', None))
     opponent_team_id = visiting_team if win_team_id == home_team else home_team
 
     # Location data
-    x_location = int(event.get('x_location', 0))
-    y_location = int(event.get('y_location', 0))
-    location_id = int(event.get('location_id', 0))
+    x_location = (event.get('x_location', None))
+    y_location = (event.get('y_location', None))
+    location_id = (event.get('location_id', None))
 
     try:
         # Check if this event already exists
@@ -317,25 +313,25 @@ def process_hit(conn: sqlite3.Connection, event: Dict[str, Any],
     cursor = conn.cursor()
 
     # Use the event ID from the data or generate a unique ID
-    hit_id = f"{game_id}_hit_{event.get('id', '')}"
+    hit_id = f"{game_id}_hit_{event.get('id', None)}"
 
     # Extract data from the event
-    event_id = int(event.get('id', 0))
-    period = int(event.get('period', 0))
-    time = event.get('time', '')
-    time_formatted = event.get('time_formatted', '')
-    seconds = int(event.get('s', 0))
+    event_id = (event.get('id', None))
+    period = (event.get('period', None))
+    time = event.get('time', None)
+    time_formatted = event.get('time_formatted', None)
+    seconds = (event.get('s', None))
 
-    player_id = int(event.get('player_id', 0))
-    team_id = int(event.get('team_id', 0))
+    player_id = (event.get('player_id', None))
+    team_id = (event.get('team_id', None))
     opponent_team_id = visiting_team if team_id == home_team else home_team
 
     home = event.get('home') == '1'
 
     # Location data
-    x_location = int(event.get('x_location', 0))
-    y_location = int(event.get('y_location', 0))
-    hit_type = int(event.get('hit_type', 0))
+    x_location = (event.get('x_location', None))
+    y_location = (event.get('y_location', None))
+    hit_type = (event.get('hit_type', None))
 
     try:
         # Check if this event already exists
@@ -382,107 +378,8 @@ def process_hit(conn: sqlite3.Connection, event: Dict[str, Any],
         return False
 
 
-def process_shot(conn: sqlite3.Connection, event: Dict[str, Any],
-                 game_id: int, season_id: int,
-                 home_team: int, visiting_team: int) -> bool:
-    """
-    Process a shot event and store it in the database.
-
-    Args:
-        conn: Database connection
-        event: Shot event data
-        game_id: Game ID
-        season_id: Season ID
-        home_team: Home team ID
-        visiting_team: Away team ID
-
-    Returns:
-        True if processed successfully, False otherwise
-    """
-    cursor = conn.cursor()
-
-    # Use the event ID from the data or generate a unique ID
-    shot_id = f"{game_id}_shot_{event.get('id', '')}"
-
-    # Extract data from the event
-    event_id = int(event.get('id', 0))
-    player_id = int(event.get('player_id', 0))
-    goalie_id = int(event.get('goalie_id', 0)) if event.get('goalie_id') else None
-
-    team_id = int(event.get('player_team_id', event.get('team_id', 0)))
-    opponent_team_id = visiting_team if team_id == home_team else home_team
-
-    home = event.get('home') == '1'
-
-    period = int(event.get('period_id', 0))
-    time = event.get('time', '')
-    time_formatted = event.get('time_formatted', '')
-    seconds = int(event.get('s', 0))
-
-    # Location and shot details
-    x_location = int(event.get('x_location', 0))
-    y_location = int(event.get('y_location', 0))
-
-    shot_type = int(event.get('shot_type', 0))
-    shot_type_description = event.get('shot_type_description', '')
-
-    quality = int(event.get('quality', 0))
-    shot_quality_description = event.get('shot_quality_description', '')
-
-    game_goal_id = event.get('game_goal_id', '')
-
-    try:
-        # Check if this event already exists
-        cursor.execute(
-            "SELECT id FROM pbp_shots WHERE game_id = ? AND id = ?",
-            (game_id, event_id)
-        )
-        exists = cursor.fetchone()
-
-        if exists:
-            # Update existing record
-            query = """
-            UPDATE pbp_shots
-            SET player_id = ?, goalie_id = ?, team_id = ?, opponent_team_id = ?,
-                home = ?, period = ?, time = ?, time_formatted = ?, seconds = ?,
-                x_location = ?, y_location = ?, shot_type = ?, shot_type_description = ?,
-                quality = ?, shot_quality_description = ?, game_goal_id = ?
-            WHERE id = ?
-            """
-            cursor.execute(query, (
-                player_id, goalie_id, team_id, opponent_team_id,
-                home, period, time, time_formatted, seconds,
-                x_location, y_location, shot_type, shot_type_description,
-                quality, shot_quality_description, game_goal_id, exists[0]
-            ))
-        else:
-            # Insert the shot
-            query = """
-            INSERT INTO pbp_shots (
-                id, event_id, game_id, season_id, player_id, goalie_id, team_id, opponent_team_id,
-                home, period, time, time_formatted, seconds,
-                x_location, y_location, shot_type, shot_type_description,
-                quality, shot_quality_description, game_goal_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """
-
-            cursor.execute(query, (
-                shot_id, event_id, game_id, season_id, player_id, goalie_id, team_id, opponent_team_id,
-                home, period, time, time_formatted, seconds,
-                x_location, y_location, shot_type, shot_type_description,
-                quality, shot_quality_description, game_goal_id
-            ))
-
-        return True
-
-    except sqlite3.Error as e:
-        logger.error(f"Database error processing shot: {e}")
-        return False
-
-
 def process_blocked_shot(conn: sqlite3.Connection, event: Dict[str, Any],
-                         game_id: int, season_id: int,
-                         home_team: int, visiting_team: int) -> bool:
+                         game_id: int, season_id: int) -> bool:
     """
     Process a blocked shot event and store it in the database.
 
@@ -491,8 +388,6 @@ def process_blocked_shot(conn: sqlite3.Connection, event: Dict[str, Any],
         event: Blocked shot event data
         game_id: Game ID
         season_id: Season ID
-        home_team: Home team ID
-        visiting_team: Away team ID
 
     Returns:
         True if processed successfully, False otherwise
@@ -500,34 +395,34 @@ def process_blocked_shot(conn: sqlite3.Connection, event: Dict[str, Any],
     cursor = conn.cursor()
 
     # Use the event ID from the data or generate a unique ID
-    blocked_shot_id = f"{game_id}_blocked_{event.get('id', '')}"
+    blocked_shot_id = f"{game_id}_blocked_{event.get('id', None)}"
 
     # Extract data from the event
-    event_id = int(event.get('id', 0))
-    player_id = int(event.get('player_id', 0))
-    goalie_id = int(event.get('goalie_id', 0)) if event.get('goalie_id') else None
+    event_id = (event.get('id', None))
+    player_id = (event.get('player_id', None))
+    goalie_id = (event.get('goalie_id', None))
 
-    team_id = int(event.get('player_team_id', event.get('team_id', 0)))
-    blocker_player_id = int(event.get('blocker_player_id', 0))
-    blocker_team_id = int(event.get('blocker_team_id', 0))
+    team_id = (event.get('player_team_id', event.get('team_id', None)))
+    blocker_player_id = (event.get('blocker_player_id', None))
+    blocker_team_id = (event.get('blocker_team_id', None))
 
     home = event.get('home') == '1'
 
-    period = int(event.get('period_id', 0))
-    time = event.get('time', '')
-    time_formatted = event.get('time_formatted', '')
-    seconds = int(event.get('seconds', event.get('s', 0)))
+    period = (event.get('period_id', None))
+    time = event.get('time', None)
+    time_formatted = event.get('time_formatted', None)
+    seconds = (event.get('seconds', event.get('s', None)))
 
     # Location and shot details
-    x_location = int(event.get('x_location', 0))
-    y_location = int(event.get('y_location', 0))
-    orientation = int(event.get('orientation', 0))
+    x_location = (event.get('x_location', None))
+    y_location = (event.get('y_location', None))
+    orientation = (event.get('orientation', None))
 
-    shot_type = int(event.get('shot_type', 0))
-    shot_type_description = event.get('shot_type_description', '')
+    shot_type = (event.get('shot_type', None))
+    shot_type_description = event.get('shot_type_description', None)
 
-    quality = int(event.get('quality', 0))
-    shot_quality_description = event.get('shot_quality_description', '')
+    quality = (event.get('quality', None))
+    shot_quality_description = event.get('shot_quality_description', None)
 
     try:
         # Check if this event already exists
@@ -598,16 +493,16 @@ def process_goal(conn: sqlite3.Connection, event: Dict[str, Any],
     cursor = conn.cursor()
 
     # Use the event ID from the data or generate a unique ID
-    goal_id = f"{game_id}_goal_{event.get('id', '')}"
+    goal_id = f"{game_id}_goal_{event.get('id')}"
 
     # Extract data from the event
-    event_id = int(event.get('id', 0))
-    team_id = int(event.get('team_id', 0))
+    event_id = (event.get('id'))
+    team_id = (event.get('team_id', None))
     opponent_team_id = visiting_team if team_id == home_team else home_team
 
     home = event.get('home') == '1'
 
-    goal_player_id = int(event.get('goal_player_id', 0))
+    goal_player_id = (event.get('goal_player_id', None))
 
     # Handle assists, which might be empty
     assist1_player_id = event.get('assist1_player_id')
@@ -619,15 +514,15 @@ def process_goal(conn: sqlite3.Connection, event: Dict[str, Any],
     if assist2_player_id == '':
         assist2_player_id = None
 
-    period = event.get('period_id', '')
+    period = event.get('period_id', None)
 
-    time = event.get('time', '')
-    time_formatted = event.get('time_formatted', '')
-    seconds = int(event.get('s', 0))
+    time = event.get('time', None)
+    time_formatted = event.get('time_formatted', None)
+    seconds = (event.get('s', None))
 
     # Location data
-    x_location = int(event.get('x_location', 0))
-    y_location = int(event.get('y_location', 0))
+    x_location = (event.get('x_location', None))
+    y_location = (event.get('y_location', None))
 
     # Goal attributes
     location_set = event.get('location_set') == '1'
@@ -639,8 +534,8 @@ def process_goal(conn: sqlite3.Connection, event: Dict[str, Any],
     game_winning = event.get('game_winning') == '1'
     game_tieing = event.get('game_tieing') == '1'
 
-    scorer_goal_num = int(event.get('scorer_goal_num', 0))
-    goal_type = event.get('goal_type', '')
+    scorer_goal_num = (event.get('scorer_goal_num', None))
+    goal_type = event.get('goal_type', None)
 
     try:
         # Check if this goal already exists
@@ -698,11 +593,11 @@ def process_goal(conn: sqlite3.Connection, event: Dict[str, Any],
 
         # Process players with plus ratings
         if 'plus' in event:
-            process_goal_plus_players(conn, event_id, game_id, season_id, event.get('plus', []))
+            process_goal_plus_players(conn, goal_id, game_id, season_id, event.get('plus', []))
 
         # Process players with minus ratings
         if 'minus' in event:
-            process_goal_minus_players(conn, event_id, game_id, season_id, event.get('minus', []))
+            process_goal_minus_players(conn, goal_id, game_id, season_id, event.get('minus', []))
 
         return True
 
@@ -716,43 +611,37 @@ def process_goal_plus_players(conn: sqlite3.Connection, goal_id: str,
                               plus_players: List[Dict[str, Any]]) -> None:
     """
     Process players who received a plus on a goal.
-
     Args:
         conn: Database connection
-        goal_id: Goal event ID
+        goal_id: Goal ID
         game_id: Game ID
         season_id: Season ID
         plus_players: List of players who received a plus
     """
     cursor = conn.cursor()
-
     for player in plus_players:
         try:
-            player_id = int(player.get('player_id', 0))
-            team_id = int(player.get('team_id', 0))
-            jersey_number = int(player.get('jersey_number', 0))
-
+            player_id = (player.get('player_id', None))
+            team_id = (player.get('team_id', None))
+            jersey_number = (player.get('jersey_number', None))
             # Generate a unique ID for this plus record
             plus_id = f"{goal_id}_plus_{player_id}"
-
             # Check if this plus record already exists
             cursor.execute(
                 "SELECT id FROM pbp_goals_plus WHERE goal_id = ? AND player_id = ?",
                 (goal_id, player_id)
             )
             exists = cursor.fetchone()
-
             if not exists:
                 query = """
                 INSERT INTO pbp_goals_plus (
                     id, goal_id, game_id, season_id, team_id, player_id, jersey_number
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
                 """
-
                 cursor.execute(query, (
                     plus_id, goal_id, game_id, season_id, team_id, player_id, jersey_number
+                    # Changed from event_id to goal_id to match the schema
                 ))
-
         except sqlite3.Error as e:
             logger.error(f"Database error processing goal plus player: {e}")
 
@@ -762,45 +651,141 @@ def process_goal_minus_players(conn: sqlite3.Connection, goal_id: str,
                                minus_players: List[Dict[str, Any]]) -> None:
     """
     Process players who received a minus on a goal.
-
     Args:
         conn: Database connection
-        goal_id: Goal event ID
+        goal_id: Goal ID
         game_id: Game ID
         season_id: Season ID
         minus_players: List of players who received a minus
     """
     cursor = conn.cursor()
-
     for player in minus_players:
         try:
-            player_id = int(player.get('player_id', 0))
-            team_id = int(player.get('team_id', 0))
-            jersey_number = int(player.get('jersey_number', 0))
-
+            player_id = (player.get('player_id', None))
+            team_id = (player.get('team_id', None))
+            jersey_number = (player.get('jersey_number', None))
             # Generate a unique ID for this minus record
             minus_id = f"{goal_id}_minus_{player_id}"
-
             # Check if this minus record already exists
             cursor.execute(
                 "SELECT id FROM pbp_goals_minus WHERE goal_id = ? AND player_id = ?",
                 (goal_id, player_id)
             )
             exists = cursor.fetchone()
-
             if not exists:
                 query = """
                 INSERT INTO pbp_goals_minus (
                     id, goal_id, game_id, season_id, team_id, player_id, jersey_number
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
                 """
-
                 cursor.execute(query, (
                     minus_id, goal_id, game_id, season_id, team_id, player_id, jersey_number
+                    # Changed from event_id to goal_id to match the schema
                 ))
-
         except sqlite3.Error as e:
             logger.error(f"Database error processing goal minus player: {e}")
+
+
+def process_shot(conn: sqlite3.Connection, event: Dict[str, Any],
+                 game_id: int, season_id: int,
+                 home_team: int, visiting_team: int) -> bool:
+    """
+    Process a shot event and store it in the database.
+    Args:
+        conn: Database connection
+        event: Shot event data
+        game_id: Game ID
+        season_id: Season ID
+        home_team: Home team ID
+        visiting_team: Away team ID
+    Returns:
+        True if processed successfully, False otherwise
+    """
+    cursor = conn.cursor()
+    # Use the event ID from the data or generate a unique ID
+    shot_id = f"{game_id}_shot_{event.get('id', None)}"
+    # Extract data from the event
+    event_id = (event.get('id', None))
+
+    # Properly handle potentially null player IDs
+    player_id = event.get('player_id')
+    player_id = None if player_id is None or player_id == '' else int(player_id)
+
+    goalie_id = event.get('goalie_id')
+    goalie_id = None if goalie_id is None or goalie_id == '' else int(goalie_id)
+
+    team_id = (event.get('player_team_id', event.get('team_id', None)))
+    opponent_team_id = visiting_team if team_id == home_team else home_team
+    home = event.get('home') == '1'
+    period = (event.get('period_id', None))
+    time = event.get('time', None)
+    time_formatted = event.get('time_formatted', None)
+    seconds = (event.get('s', None))
+    # Location and shot details
+    x_location = (event.get('x_location', None))
+    y_location = (event.get('y_location', None))
+    shot_type = (event.get('shot_type', None))
+    shot_type_description = event.get('shot_type_description', None)
+    quality = (event.get('quality', None))
+    shot_quality_description = event.get('shot_quality_description', None)
+
+    # Handle game_goal_id properly
+    game_goal_id_str = event.get('game_goal_id', '')
+    game_goal_id = None if not game_goal_id_str or game_goal_id_str == '' else int(game_goal_id_str)
+
+    # If game_goal_id is provided, check if it actually exists in pbp_goals
+    if game_goal_id is not None:
+        goal_id = f"{game_id}_goal_{game_goal_id}"
+        cursor.execute("SELECT id FROM pbp_goals WHERE id = ?", (goal_id,))
+        goal_exists = cursor.fetchone()
+        if not goal_exists:
+            # The referenced goal doesn't exist, so set game_goal_id to NULL
+            logger.warning(f"Shot in game {game_id} references non-existent goal {game_goal_id}. Setting to NULL.")
+            game_goal_id = None
+
+    try:
+        # Check if this event already exists
+        cursor.execute(
+            "SELECT id FROM pbp_shots WHERE game_id = ? AND id = ?",
+            (game_id, event_id)
+        )
+        exists = cursor.fetchone()
+        if exists:
+            # Update existing record
+            query = """
+            UPDATE pbp_shots
+            SET player_id = ?, goalie_id = ?, team_id = ?, opponent_team_id = ?,
+                home = ?, period = ?, time = ?, time_formatted = ?, seconds = ?,
+                x_location = ?, y_location = ?, shot_type = ?, shot_type_description = ?,
+                quality = ?, shot_quality_description = ?, game_goal_id = ?
+            WHERE id = ?
+            """
+            cursor.execute(query, (
+                player_id, goalie_id, team_id, opponent_team_id,
+                home, period, time, time_formatted, seconds,
+                x_location, y_location, shot_type, shot_type_description,
+                quality, shot_quality_description, game_goal_id, exists[0]
+            ))
+        else:
+            # Insert the shot
+            query = """
+            INSERT INTO pbp_shots (
+                id, event_id, game_id, season_id, player_id, goalie_id, team_id, opponent_team_id,
+                home, period, time, time_formatted, seconds,
+                x_location, y_location, shot_type, shot_type_description,
+                quality, shot_quality_description, game_goal_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            cursor.execute(query, (
+                shot_id, event_id, game_id, season_id, player_id, goalie_id, team_id, opponent_team_id,
+                home, period, time, time_formatted, seconds,
+                x_location, y_location, shot_type, shot_type_description,
+                quality, shot_quality_description, game_goal_id
+            ))
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"Database error processing shot: {e}")
+        return False
 
 
 def process_penalty(conn: sqlite3.Connection, event: Dict[str, Any],
@@ -823,33 +808,36 @@ def process_penalty(conn: sqlite3.Connection, event: Dict[str, Any],
     cursor = conn.cursor()
 
     # Use the event ID from the data or generate a unique ID
-    penalty_id = f"{game_id}_penalty_{event.get('id', '')}"
+    penalty_id = f"{game_id}_penalty_{event.get('id', None)}"
 
     # Extract data from the event
-    event_id = int(event.get('id', 0))
-    player_id = int(event.get('player_id', 0))
-    player_served = int(event.get('player_served', 0))
+    event_id = event.get('id', None)
+    player_id = event.get('player_id', None)
+    if player_id == 0 or player_id == '0':
+        player_id = None
 
-    team_id = int(event.get('team_id', 0))
+    player_served = event.get('player_served', None)
+
+    team_id = (event.get('team_id', None))
     opponent_team_id = visiting_team if team_id == home_team else home_team
 
     home = event.get('home') == '1'
 
-    period = event.get('period_id', '')
+    period = event.get('period_id', None)
 
-    time_off_formatted = event.get('time_off_formatted', '')
-    minutes = float(event.get('minutes', 0))
-    minutes_formatted = event.get('minutes_formatted', '')
+    time_off_formatted = event.get('time_off_formatted', None)
+    minutes = (event.get('minutes', None))
+    minutes_formatted = event.get('minutes_formatted', None)
 
     # Penalty attributes
     bench = event.get('bench') == '1'
     penalty_shot = event.get('penalty_shot') == '1'
     pp = event.get('pp') == '1'
 
-    offence = int(event.get('offence', 0))
-    penalty_class_id = int(event.get('penalty_class_id', 0))
-    penalty_class = event.get('penalty_class', '')
-    lang_penalty_description = event.get('lang_penalty_description', '')
+    offence = (event.get('offence', None))
+    penalty_class_id = (event.get('penalty_class_id', None))
+    penalty_class = event.get('penalty_class', None)
+    lang_penalty_description = event.get('lang_penalty_description', None)
 
     try:
         # Check if this penalty already exists
@@ -920,22 +908,22 @@ def process_shootout(conn: sqlite3.Connection, event: Dict[str, Any],
     cursor = conn.cursor()
 
     # Use the event ID from the data or generate a unique ID
-    shootout_id = f"{game_id}_shootout_{event.get('id', '')}"
+    shootout_id = f"{game_id}_shootout_{event.get('id', None)}"
 
     # Extract data from the event
-    event_id = int(event.get('id', 0))
-    player_id = int(event.get('player_id', 0))
-    goalie_id = int(event.get('goalie_id', 0)) if event.get('goalie_id') else None
+    event_id = (event.get('id', None))
+    player_id = (event.get('player_id', None))
+    goalie_id = (event.get('goalie_id', None)) if event.get('goalie_id') else None
 
-    team_id = int(event.get('team_id', 0))
+    team_id = (event.get('team_id', None))
     opponent_team_id = visiting_team if team_id == home_team else home_team
 
     home = event.get('home') == '1'
 
-    shot_order = int(event.get('shot_order', 0))
+    shot_order = (event.get('shot_order', None))
     goal = event.get('goal') == '1'
     winning_goal = event.get('winning_goal') == '1'
-    seconds = int(event.get('s', 0))
+    seconds = (event.get('s', None))
 
     try:
         # Check if this shootout already exists
@@ -1042,18 +1030,19 @@ def update_play_by_play(db_path: str, game_id: Optional[int] = None, limit: Opti
                         force_all: bool = False) -> Union[int, None, Any]:
     """
     Update play-by-play data for all games without it or a specific game.
-
     Args:
         db_path: Path to the SQLite database
         game_id: Optional specific game ID to update
         limit: Optional limit on the number of games to process
         force_all: If True, process all games regardless of existing play-by-play data
-
     Returns:
         Total number of events processed
     """
     conn = create_connection(db_path)
     total_processed = 0
+
+    # Temporarily disable foreign key constraints to avoid the circular reference issue
+    conn.execute("PRAGMA foreign_keys = OFF")
 
     try:
         if game_id:
@@ -1071,10 +1060,8 @@ def update_play_by_play(db_path: str, game_id: Optional[int] = None, limit: Opti
             cursor.execute("SELECT id, season_id FROM games WHERE status = '4'")
             games_to_process = cursor.fetchall()
             logger.info(f"Found {len(games_to_process)} completed games to process")
-
             if limit:
                 games_to_process = games_to_process[:limit]
-
             for game_id, season_id in games_to_process:
                 events_processed = process_game_play_by_play(conn, game_id, season_id)
                 total_processed += events_processed
@@ -1083,23 +1070,20 @@ def update_play_by_play(db_path: str, game_id: Optional[int] = None, limit: Opti
             # Process only games without play-by-play data
             games_to_process = get_games_without_play_by_play(conn)
             logger.info(f"Found {len(games_to_process)} games without play-by-play data")
-
             if limit:
                 games_to_process = games_to_process[:limit]
-
             for game_id, season_id in games_to_process:
                 events_processed = process_game_play_by_play(conn, game_id, season_id)
                 total_processed += events_processed
                 logger.info(f"Processed game {game_id}: {events_processed} events")
-
     except Exception as e:
         logger.error(f"Error updating play-by-play data: {e}")
         conn.rollback()
         raise
-
     finally:
+        # Re-enable foreign key constraints
+        conn.execute("PRAGMA foreign_keys = ON")
         conn.close()
-
     return total_processed
 
 
