@@ -1,3 +1,5 @@
+<img src="/logo.svg" alt="logo" width="50"/>
+
 # PWHL Scraper
 
 [![PyPI version](https://badge.fury.io/py/pwhl-scraper.svg)](https://badge.fury.io/py/pwhl-scraper)
