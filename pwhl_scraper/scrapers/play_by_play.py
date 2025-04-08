@@ -130,6 +130,45 @@ def get_game_teams(conn: sqlite3.Connection, game_id: int) -> Tuple[Optional[int
     return None, None
 
 
+def determine_opponent_team_id(team_id, home_team, visiting_team):
+    """
+    Determine the opponent team ID based on the team ID and game teams.
+
+    Args:
+        team_id: Team ID to find the opponent for
+        home_team: Home team ID
+        visiting_team: Visiting team ID
+
+    Returns:
+        Opponent team ID
+    """
+    # Convert all values to integers to ensure consistent comparison
+    try:
+        team_id = int(team_id) if team_id is not None else None
+        home_team = int(home_team) if home_team is not None else None
+        visiting_team = int(visiting_team) if visiting_team is not None else None
+    except (ValueError, TypeError):
+        logger.warning(
+            f"Type conversion issue with team_id: {team_id} ({type(team_id)}), "
+            f"home_team: {home_team} ({type(home_team)}), "
+            f"visiting_team: {visiting_team} ({type(visiting_team)})"
+        )
+
+    if team_id == home_team:
+        return visiting_team
+    elif team_id == visiting_team:
+        return home_team
+    else:
+        # Add more diagnostic info to understand what's happening
+        logger.warning(
+            f"Team ID {team_id} ({type(team_id)}) does not match either "
+            f"home team {home_team} ({type(home_team)}) or "
+            f"visiting team {visiting_team} ({type(visiting_team)})"
+        )
+        # Return a sensible default
+        return visiting_team
+
+
 def process_goalie_change(conn: sqlite3.Connection, event: Dict[str, Any],
                           game_id: int, season_id: int,
                           home_team: int, visiting_team: int) -> bool:
@@ -158,7 +197,7 @@ def process_goalie_change(conn: sqlite3.Connection, event: Dict[str, Any],
     time = event.get('time', None)
     seconds = (event.get('s', None))
     team_id = (event.get('team_id', None))
-    opponent_team_id = visiting_team if team_id == home_team else home_team
+    opponent_team_id = determine_opponent_team_id(team_id, home_team, visiting_team)
 
     # Get goalie IDs, handle possible None values
     goalie_in_id = event.get('goalie_in_id')
@@ -243,7 +282,7 @@ def process_faceoff(conn: sqlite3.Connection, event: Dict[str, Any],
 
     # Determine the winning team
     win_team_id = (event.get('win_team_id', None))
-    opponent_team_id = visiting_team if win_team_id == home_team else home_team
+    opponent_team_id = determine_opponent_team_id(win_team_id, home_team, visiting_team)
 
     # Location data
     x_location = (event.get('x_location', None))
@@ -324,7 +363,7 @@ def process_hit(conn: sqlite3.Connection, event: Dict[str, Any],
 
     player_id = (event.get('player_id', None))
     team_id = (event.get('team_id', None))
-    opponent_team_id = visiting_team if team_id == home_team else home_team
+    opponent_team_id = determine_opponent_team_id(team_id, home_team, visiting_team)
 
     home = event.get('home') == '1'
 
@@ -498,7 +537,7 @@ def process_goal(conn: sqlite3.Connection, event: Dict[str, Any],
     # Extract data from the event
     event_id = (event.get('id'))
     team_id = (event.get('team_id', None))
-    opponent_team_id = visiting_team if team_id == home_team else home_team
+    opponent_team_id = determine_opponent_team_id(team_id, home_team, visiting_team)
 
     home = event.get('home') == '1'
 
@@ -715,7 +754,7 @@ def process_shot(conn: sqlite3.Connection, event: Dict[str, Any],
     goalie_id = None if goalie_id is None or goalie_id == '' else int(goalie_id)
 
     team_id = (event.get('player_team_id', event.get('team_id', None)))
-    opponent_team_id = visiting_team if team_id == home_team else home_team
+    opponent_team_id = determine_opponent_team_id(team_id, home_team, visiting_team)
     home = event.get('home') == '1'
     period = (event.get('period_id', None))
     time = event.get('time', None)
@@ -819,7 +858,7 @@ def process_penalty(conn: sqlite3.Connection, event: Dict[str, Any],
     player_served = event.get('player_served', None)
 
     team_id = (event.get('team_id', None))
-    opponent_team_id = visiting_team if team_id == home_team else home_team
+    opponent_team_id = determine_opponent_team_id(team_id, home_team, visiting_team)
 
     home = event.get('home') == '1'
 
@@ -916,7 +955,7 @@ def process_shootout(conn: sqlite3.Connection, event: Dict[str, Any],
     goalie_id = (event.get('goalie_id', None)) if event.get('goalie_id') else None
 
     team_id = (event.get('team_id', None))
-    opponent_team_id = visiting_team if team_id == home_team else home_team
+    opponent_team_id = determine_opponent_team_id(team_id, home_team, visiting_team)
 
     home = event.get('home') == '1'
 
